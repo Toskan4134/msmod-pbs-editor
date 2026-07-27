@@ -191,7 +191,7 @@ export function createTrainerPokemonEditor(entry, onChange, onRebuild, refData, 
       movesField.appendChild(h('label', { textContent: _t('Moves') }));
       const movesItems = (p.Moves || '').split(',').filter(Boolean);
       const movesEditor = createListEditor(movesItems, (v) => { p.Moves = v; onChange(); }, moveSuggestions, onNavigate, 'moves');
-      movesField.appendChild(movesEditor.el);
+      movesField.appendChild(movesEditor);
       body.appendChild(movesField);
 
       // Nature
@@ -234,14 +234,14 @@ export function createTrainerPokemonEditor(entry, onChange, onRebuild, refData, 
       const ivField = h('div', { className: 'pbs-field', style: { gridColumn: '1 / -1' } });
       ivField.appendChild(h('label', { textContent: _t('IVs') }));
       const ivEditor = createEvsEditor(p.IV || '', (v) => { p.IV = v; onChange(); });
-      ivField.appendChild(ivEditor.el);
+      ivField.appendChild(ivEditor);
       body.appendChild(ivField);
 
       // EV (full width)
       const evField = h('div', { className: 'pbs-field', style: { gridColumn: '1 / -1' } });
       evField.appendChild(h('label', { textContent: _t('EVs') }));
       const evEditor = createEvsEditor(p.EV || '', (v) => { p.EV = v; onChange(); });
-      evField.appendChild(evEditor.el);
+      evField.appendChild(evEditor);
       body.appendChild(evField);
 
       sub.appendChild(body);

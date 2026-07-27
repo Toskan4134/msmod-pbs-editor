@@ -39,39 +39,33 @@ let _animInterval = null;
 
 export function createPreviewPanel(loadImageFn) {
   const panel = h('div', { className: 'pbs-preview' });
-  const placeholder = h('div', { className: 'pbs-preview-placeholder' });
-  placeholder.appendChild(h('div', { className: 'pbs-preview-placeholder-icon', innerHTML: ICON_PREVIEW }));
-  placeholder.appendChild(h('div', { textContent: _t('Select an entry to preview') }));
-  panel.appendChild(placeholder);
+  panel.appendChild(placeholder(ICON_PREVIEW, _t('Select an entry to preview')));
 
   function stopAnim() {
     if (_animInterval) { clearInterval(_animInterval); _animInterval = null; }
+  }
+  function placeholder(icon, ...lines) {
+    const ph = h('div', { className: 'pbs-preview-placeholder' });
+    ph.appendChild(h('div', { className: 'pbs-preview-placeholder-icon', innerHTML: icon }));
+    for (const line of lines) ph.appendChild(typeof line === 'string' ? h('div', { textContent: line }) : h('div', line));
+    return ph;
   }
 
   function show(gameRoot, path, displayName, fps, opts = {}) {
     stopAnim();
     panel.innerHTML = '';
     if (!path) {
-      const ph = h('div', { className: 'pbs-preview-placeholder' });
-      ph.appendChild(h('div', { className: 'pbs-preview-placeholder-icon', innerHTML: ICON_PREVIEW }));
-      ph.appendChild(h('div', { textContent: _t('No graphic') }));
-      panel.appendChild(ph);
+      panel.appendChild(placeholder(ICON_PREVIEW, _t('No graphic')));
       panel.appendChild(h('div', { className: 'pbs-preview-name', textContent: displayName || '' }));
       return;
     }
     if (!loadImageFn) {
-      const ph = h('div', { className: 'pbs-preview-placeholder' });
-      ph.appendChild(h('div', { className: 'pbs-preview-placeholder-icon', innerHTML: ICON_PREVIEW }));
-      ph.appendChild(h('div', { textContent: _t('No loader') }));
-      panel.appendChild(ph);
+      panel.appendChild(placeholder(ICON_PREVIEW, _t('No loader')));
       panel.appendChild(h('div', { className: 'pbs-preview-name', textContent: displayName || '' }));
       return;
     }
     const absPath = (gameRoot || '').replace(/\\/g, '/') + '/' + path;
-    const loading = h('div', { className: 'pbs-preview-placeholder' });
-    loading.appendChild(h('div', { className: 'pbs-preview-placeholder-icon', innerHTML: ICON_LOADING }));
-    loading.appendChild(h('div', { textContent: _t('Loading...') }));
-    panel.appendChild(loading);
+    panel.appendChild(placeholder(ICON_LOADING, _t('Loading...')));
 
     const panelName = displayName || '';
     const animFps = fps || 16;
@@ -79,11 +73,7 @@ export function createPreviewPanel(loadImageFn) {
     loadImageFn(absPath).then(url => {
       if (!url) {
         panel.innerHTML = '';
-        const ph = h('div', { className: 'pbs-preview-placeholder' });
-        ph.appendChild(h('div', { className: 'pbs-preview-placeholder-icon', innerHTML: ICON_NOT_FOUND }));
-        ph.appendChild(h('div', { textContent: path.split('/').pop() }));
-        ph.appendChild(h('div', { textContent: _t('Not found'), style: { fontSize: '10px' } }));
-        panel.appendChild(ph);
+        panel.appendChild(placeholder(ICON_NOT_FOUND, path.split('/').pop(), { textContent: _t('Not found'), style: { fontSize: '10px' } }));
         panel.appendChild(h('div', { className: 'pbs-preview-name', textContent: panelName }));
         return;
       }
@@ -123,19 +113,13 @@ export function createPreviewPanel(loadImageFn) {
       };
       img.onerror = () => {
         panel.innerHTML = '';
-        const ph = h('div', { className: 'pbs-preview-placeholder' });
-        ph.appendChild(h('div', { className: 'pbs-preview-placeholder-icon', innerHTML: ICON_NOT_FOUND }));
-        ph.appendChild(h('div', { textContent: path.split('/').pop() }));
-        panel.appendChild(ph);
+        panel.appendChild(placeholder(ICON_NOT_FOUND, path.split('/').pop()));
         panel.appendChild(h('div', { className: 'pbs-preview-name', textContent: panelName }));
       };
       img.src = url;
     }).catch(() => {
       panel.innerHTML = '';
-      const ph = h('div', { className: 'pbs-preview-placeholder' });
-      ph.appendChild(h('div', { className: 'pbs-preview-placeholder-icon', innerHTML: ICON_NOT_FOUND }));
-      ph.appendChild(h('div', { textContent: path.split('/').pop() }));
-      panel.appendChild(ph);
+      panel.appendChild(placeholder(ICON_NOT_FOUND, path.split('/').pop()));
       panel.appendChild(h('div', { className: 'pbs-preview-name', textContent: panelName }));
     });
   }
@@ -143,10 +127,7 @@ export function createPreviewPanel(loadImageFn) {
   function clear() {
     stopAnim();
     panel.innerHTML = '';
-    const ph = h('div', { className: 'pbs-preview-placeholder' });
-    ph.appendChild(h('div', { className: 'pbs-preview-placeholder-icon', innerHTML: ICON_PREVIEW }));
-    ph.appendChild(h('div', { textContent: _t('Select an entry') }));
-    panel.appendChild(ph);
+    panel.appendChild(placeholder(ICON_PREVIEW, _t('Select an entry')));
   }
 
   function showTypeIcon(displayName, iconPos) {
@@ -222,7 +203,8 @@ export function createTable(columns, rows, options = {}) {
       for (const col of columns) {
         const val = row[col.key] ?? '';
         const td = h('td', { textContent: col.numeric ? (parseInt(val) || '') : String(val) });
-        td.title = String(val);
+        // ponytail: set title only when text overflows, checked lazily on hover (no reflow at render)
+        td.addEventListener('mouseenter', () => { td.title = td.scrollWidth > td.clientWidth ? String(val) : ''; });
         tr.appendChild(td);
       }
       tr.addEventListener('click', () => { selectedIdx = i; renderBody(); options.onSelect?.(i, row); });
@@ -236,7 +218,7 @@ export function createTable(columns, rows, options = {}) {
   function getSortCol() { return sortCol; }
   function getSortDir() { return sortDir; }
   render();
-  return { el: table, setSelected, render, getSelected: () => selectedIdx, getSortCol, getSortDir };
+  return { el: table, setSelected, render, getSortCol, getSortDir };
 }
 
 // ---- Collapsible section ----

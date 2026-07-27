@@ -61,18 +61,6 @@ function extraKeys(data, entry) {
 }
 
 // ---------------------------------------------------------------------------
-// Version detection
-// ---------------------------------------------------------------------------
-
-export function detectVersion(pokemonContent) {
-  if (!pokemonContent) return 21;
-  const first = pokemonContent.split(/\r?\n/).find(l => l.trim().startsWith('['));
-  if (!first) return 21;
-  if (/^\[\d+\]/.test(first.trim())) return 16;
-  return 21;
-}
-
-// ---------------------------------------------------------------------------
 // Filename map per version
 // ---------------------------------------------------------------------------
 

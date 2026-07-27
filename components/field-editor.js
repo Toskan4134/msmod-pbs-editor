@@ -25,7 +25,7 @@ export function createFieldEditor(fieldDef, value, onChange, refData, ctx, onNav
       const btn = goToBtn(fieldDef.ref, () => ref.getValue(), onNavigate);
       if (btn) row.appendChild(btn);
       wrap.appendChild(row);
-      return { el: wrap, getValue: () => ref.getValue(), setValue: (v) => ref.setValue(v) };
+      return wrap;
     }
     const input = h('input', { type: type === 'number' ? 'number' : 'text', value: String(value || ''), placeholder: fieldDef.placeholder || '' });
     if (fieldDef.min != null) input.min = fieldDef.min;
@@ -33,7 +33,7 @@ export function createFieldEditor(fieldDef, value, onChange, refData, ctx, onNav
     if (fieldDef.step != null) input.step = fieldDef.step;
     input.addEventListener('input', () => onChange(input.value));
     wrap.appendChild(input);
-    return { el: wrap, getValue: () => input.value, setValue: (v) => { input.value = v; } };
+    return wrap;
   }
   if (type === 'select') {
     const row = h('div', { style: { display: 'flex', gap: '2px', alignItems: 'center' } });
@@ -49,7 +49,7 @@ export function createFieldEditor(fieldDef, value, onChange, refData, ctx, onNav
     const btn = goToBtn(fieldDef.ref, () => sel.value, onNavigate);
     if (btn) row.appendChild(btn);
     wrap.appendChild(row);
-    return { el: wrap, getValue: () => sel.value, setValue: (v) => { sel.value = v; } };
+    return wrap;
   }
   if (type === 'checkbox') {
     const row = h('div', { style: { display: 'flex', alignItems: 'center', gap: '6px', paddingTop: '4px' } });
@@ -60,13 +60,13 @@ export function createFieldEditor(fieldDef, value, onChange, refData, ctx, onNav
     cb.addEventListener('change', () => { lbl.textContent = cb.checked ? _t('Yes') : _t('No'); });
     row.appendChild(lbl);
     wrap.appendChild(row);
-    return { el: wrap, getValue: () => cb.checked ? 'true' : 'false', setValue: (v) => { cb.checked = v === 'true'; } };
+    return wrap;
   }
   if (type === 'textarea') {
     const ta = h('textarea', { textContent: value || '' });
     ta.addEventListener('input', () => onChange(ta.value));
     wrap.appendChild(ta);
-    return { el: wrap, getValue: () => ta.value, setValue: (v) => { ta.value = v; } };
+    return wrap;
   }
   if (type === 'list') {
     const items = (value || '').split(',').filter(Boolean);
@@ -80,46 +80,46 @@ export function createFieldEditor(fieldDef, value, onChange, refData, ctx, onNav
       }
     }
     const editor = createListEditor(items, onChange, fieldDef.ref ? getSuggestions() : null, onNavigate, fieldDef.ref, typeIconPositions);
-    wrap.appendChild(editor.el);
-    return { el: wrap, getValue: () => editor.getValue() };
+    wrap.appendChild(editor);
+    return wrap;
   }
   if (type === 'pairs') {
     const rawItems = (value || '').split(',');
     const pairs = [];
     for (let i = 0; i < rawItems.length; i += 2) { if (rawItems[i] && rawItems[i + 1]) pairs.push([rawItems[i].trim(), rawItems[i + 1].trim()]); }
     const editor = createPairsEditor(pairs, fieldDef.pairLabels || ['A', 'B'], onChange, fieldDef.refB ? getSuggestions(fieldDef.refB) : null, onNavigate, fieldDef.refB);
-    wrap.appendChild(editor.el);
-    return { el: wrap, getValue: () => editor.getValue() };
+    wrap.appendChild(editor);
+    return wrap;
   }
   if (type === 'triplets') {
     const rawItems = (value || '').split(',');
     const trips = [];
     for (let i = 0; i < rawItems.length; i += 3) { if (rawItems[i]) trips.push([rawItems[i]?.trim(), rawItems[i + 1]?.trim(), rawItems[i + 2]?.trim()]); }
     const editor = createTripletsEditor(trips, fieldDef.labels || ['A', 'B', 'C'], onChange, fieldDef.refA ? getSuggestions(fieldDef.refA) : null, onNavigate, fieldDef.refA, refData, !!fieldDef.evolution);
-    wrap.appendChild(editor.el);
-    return { el: wrap, getValue: () => editor.getValue() };
+    wrap.appendChild(editor);
+    return wrap;
   }
   if (type === 'stats') {
     const parts = (value || '').split(',').map(n => parseInt(n.trim()) || 0);
     const statNames = fieldDef.statsKeys || ['HP', 'Atk', 'Def', 'Spe', 'SpAtk', 'SpDef'];
     const editor = createStatsEditor(parts, statNames, onChange);
-    wrap.appendChild(editor.el);
-    return { el: wrap, getValue: () => editor.getValue() };
+    wrap.appendChild(editor);
+    return wrap;
   }
   if (type === 'evs') {
     const editor = createEvsEditor(value || '', onChange);
-    wrap.appendChild(editor.el);
-    return { el: wrap, getValue: () => editor.getValue() };
+    wrap.appendChild(editor);
+    return wrap;
   }
   if (type === 'bgm') {
     const editor = createBgmEditor(value || '', onChange, ctx);
-    wrap.appendChild(editor.el);
-    return { el: wrap, getValue: () => editor.getValue() };
+    wrap.appendChild(editor);
+    return wrap;
   }
   const input = h('input', { type: 'text', value: String(value || '') });
   input.addEventListener('input', () => onChange(input.value));
   wrap.appendChild(input);
-  return { el: wrap, getValue: () => input.value, setValue: (v) => { input.value = v; } };
+  return wrap;
 }
 
 // ---- List editor ----
@@ -168,7 +168,7 @@ export function createListEditor(items, onChange, suggestions, onNavigate, refKe
   }
   function emitChange() { onChange(items.filter(Boolean).join(',')); }
   render();
-  return { el: container, getValue: () => items.filter(Boolean).join(',') };
+  return container;
 }
 
 // ---- Pairs editor ----
@@ -204,7 +204,7 @@ function createPairsEditor(pairs, labels, onChange, suggestions, onNavigate, ref
   }
   function emitChange() { onChange(pairs.map(p => `${p[0]},${p[1]}`).join(',')); }
   render();
-  return { el: container, getValue: () => pairs.map(p => `${p[0]},${p[1]}`).join(',') };
+  return container;
 }
 
 // ---- Triplets editor ----
@@ -342,7 +342,7 @@ function createTripletsEditor(trips, labels, onChange, suggestions, onNavigate, 
   const serialize = () => trips.filter(t => cell(t, 0)).map(t => `${cell(t, 0)},${cell(t, 1)},${cell(t, 2)}`).join(',');
   function emitChange() { onChange(serialize()); }
   render();
-  return { el: container, getValue: serialize };
+  return container;
 }
 
 // ---- Stats editor ----
@@ -394,7 +394,7 @@ function createStatsEditor(values, names, onChange) {
   }
   function emitChange() { onChange(values.join(',')); }
   render();
-  return { el: container, getValue: () => values.join(',') };
+  return container;
 }
 
 // ---- EVs editor ----
@@ -445,7 +445,7 @@ export function createEvsEditor(value, onChange) {
     container.appendChild(h('button', { className: 'pbs-list-add', textContent: _t('+ Add EV'), onClick: () => { pairs.push({ stat: 'HP', val: 0 }); render(); emitChange(); } }));
   }
   render();
-  return { el: container, getValue: () => pairs.map(p => `${p.stat},${p.val}`).join(',') };
+  return container;
 }
 
 // ---- BGM editor ----
@@ -468,5 +468,5 @@ function createBgmEditor(value, onChange, ctx) {
     } });
     row.appendChild(browseBtn);
   }
-  return { el: row, getValue: () => input.value };
+  return row;
 }

@@ -29,6 +29,7 @@ export function setI18n(tFn) { _t = tFn; }
 const _tbSvg = (d) => `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle">${d}</svg>`;
 const ICON_SAVE  = _tbSvg('<path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/>');
 const ICON_TRASH = _tbSvg('<polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>');
+const ICON_DISCARD = _tbSvg('<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/>');
 
 const PAGE_SIZE = 50;
 
@@ -97,42 +98,6 @@ export class PbsEditor {
     ]) {
       const url = await this.loadImageBlob(base + '/' + c);
       if (url) { URL.revokeObjectURL(url); return c; }
-    }
-    return await this.findGraphicFile('Graphics', stem);
-  }
-
-  async findGraphicFile(dir, stem) {
-    const key = dir.toLowerCase() + '|' + stem.toLowerCase();
-    this._graphicSearchCache ||= new Map();
-    if (this._graphicSearchCache.has(key)) return this._graphicSearchCache.get(key);
-    this._graphicSearchCache.set(key, null); // guards against cycles / re-search
-
-    let entries = [];
-    try {
-      const list = await this.ctx.fs.listProjectDir(dir);
-      entries = (list || []).map(e => (typeof e === 'string' ? e : (e?.name || e?.path || '')));
-    } catch { entries = []; }
-
-    const norm = dir.replace(/\/+$/, '');
-    const want = stem.toLowerCase();
-    // First pass: any returned entry whose basename stem matches.
-    for (const e of entries) {
-      const clean = e.replace(/^[/\\]+/, '');
-      const baseName = clean.split(/[\\/]/).pop();
-      if (!baseName) continue;
-      if (baseName.replace(/\.[^.]+$/, '').toLowerCase() === want) {
-        const full = `${norm}/${clean}`.replace(/\/{2,}/g, '/');
-        this._graphicSearchCache.set(key, full);
-        return full;
-      }
-    }
-    // Second pass: recurse into immediate subdirectories.
-    for (const e of entries) {
-      const clean = e.replace(/^[/\\]+/, '');
-      if (!clean || clean.includes('/') || clean.includes('\\')) continue; // nested or empty
-      if (/\.[^.]+$/.test(clean)) continue; // a file, not a folder
-      const found = await this.findGraphicFile(`${norm}/${clean}`, stem);
-      if (found) { this._graphicSearchCache.set(key, found); return found; }
     }
     return null;
   }
@@ -226,6 +191,7 @@ export class PbsEditor {
     this.dirtyIndicator = h('span', { style: { display: 'none' } });
     this.toolbar.appendChild(this.dirtyIndicator);
     this.toolbar.appendChild(button(`${ICON_SAVE} ${_t('Save')}`, () => this.saveCurrentFile(), 'primary'));
+    this.toolbar.appendChild(button(`${ICON_DISCARD} ${_t('Discard')}`, () => this.discardChanges()));
     this.toolbar.appendChild(button(_t('+ New'), () => this.addEntry()));
     this.toolbar.appendChild(button(`${ICON_TRASH} ${_t('Delete')}`, () => this.deleteEntry(), 'danger'));
     this.root.appendChild(this.toolbar);
@@ -278,6 +244,11 @@ export class PbsEditor {
     if (!ft) return;
     const entries = this.entries[ft];
     if (!entries?.length) return;
+
+    // Don't hijack arrows while the user is typing in a field or navigating a
+    // suggestion dropdown — only move the selected entry from the list itself.
+    const t = e.target;
+    if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
 
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
       e.preventDefault();
@@ -560,13 +531,11 @@ export class PbsEditor {
   _sortEntries(entries, config, sortCol, sortDir) {
     const col = config.columns[sortCol];
     if (!col) return entries;
-    const sorted = entries.map((r, i) => ({ row: r, idx: i }));
-    sorted.sort((a, b) => {
-      let va = a.row[col.key] ?? '', vb = b.row[col.key] ?? '';
+    return entries.slice().sort((a, b) => {
+      let va = a[col.key] ?? '', vb = b[col.key] ?? '';
       if (col.numeric) { va = parseFloat(va) || 0; vb = parseFloat(vb) || 0; }
       return va < vb ? -sortDir : va > vb ? sortDir : 0;
     });
-    return sorted.map(s => s.row);
   }
 
   renderTable() {
@@ -703,10 +672,10 @@ export class PbsEditor {
       for (const section of config.sections) {
         const toggle = createSectionToggle(section.label);
         body.appendChild(toggle.toggle);
-        for (const fieldDef of section.fields) {
+         for (const fieldDef of section.fields) {
           const val = entry[fieldDef.key] || '';
           const editor = this.makeFieldEditor(fieldDef, val, entry, config);
-          toggle.body.appendChild(editor.el);
+          toggle.body.appendChild(editor);
         }
         body.appendChild(toggle.body);
       }
@@ -714,7 +683,7 @@ export class PbsEditor {
       for (const fieldDef of (config.fields || [])) {
         const val = entry[fieldDef.key] || '';
         const editor = this.makeFieldEditor(fieldDef, val, entry, config);
-        body.appendChild(editor.el);
+        body.appendChild(editor);
       }
     }
 
@@ -728,7 +697,7 @@ export class PbsEditor {
       for (const fieldDef of section.fields) {
         const val = entry[fieldDef.key] || '';
         const editor = this.makeFieldEditor(fieldDef, val, entry, config);
-        body.appendChild(editor.el);
+        body.appendChild(editor);
       }
     }
 
@@ -775,6 +744,24 @@ export class PbsEditor {
     } catch (e) {
       this.ctx.ui.showToast({ message: _t('Save failed: {error}', { error: e.message }), level: 'error' });
     }
+  }
+
+  async discardChanges() {
+    const ft = this.currentFileType;
+    if (!ft || !this.dirty.has(ft)) return;
+    const confirmed = await this.ctx.ui.showConfirmDialog({
+      title: _t('Discard Changes'),
+      message: _t('Discard all unsaved changes in {fileType}?', { fileType: ft }),
+      danger: true,
+    });
+    if (!confirmed) return;
+    const orig = this.originalEntries[ft];
+    if (orig) this.entries[ft] = JSON.parse(JSON.stringify(orig));
+    this.dirty.delete(ft);
+    this.updateDirtyIndicator();
+    this.renderTable();
+    this.renderDetail();
+    this.updateStatusBar();
   }
 
   async saveAllDirty() {

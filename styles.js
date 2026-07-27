@@ -295,6 +295,7 @@ export const CSS = `
   flex-direction: column;
   gap: 2px;
   min-width: 0;
+  margin-top: 10px;
 }
 .pbs-field.full-width { grid-column: 1 / -1; }
 .pbs-field label {
@@ -341,11 +342,15 @@ export const CSS = `
   align-items: center;
   gap: 4px;
   padding: 4px 0;
+  margin-top: 12px;
+  border-top: 1px solid var(--border);
   cursor: pointer;
   color: var(--text-secondary);
   font-size: 11px;
   font-weight: 600;
-  border: none;
+  border-left: none;
+  border-right: none;
+  border-bottom: none;
   background: none;
   font-family: inherit;
   width: 100%;
@@ -354,7 +359,7 @@ export const CSS = `
 .pbs-section-toggle:hover { color: var(--text-primary); }
 .pbs-section-arrow { font-size: 9px; transition: transform 0.15s; }
 .pbs-section-arrow.open { transform: rotate(90deg); }
-.pbs-section-body { grid-column: 1 / -1; }
+.pbs-section-body { grid-column: 1 / -1; padding-bottom: 8px; }
 
 /* ---- List editor ---- */
 .pbs-list-editor {
@@ -390,6 +395,7 @@ export const CSS = `
   line-height: 1;
 }
 .pbs-list-remove:hover { color: var(--danger); }
+.pbs-goto-btn:hover { color: var(--accent); }
 .pbs-list-add {
   background: transparent;
   border: 1px dashed var(--border);
@@ -546,12 +552,6 @@ export const CSS = `
   color: var(--text-tertiary);
 }
 
-/* ---- Scrollbar ---- */
-.pbs-root ::-webkit-scrollbar { width: 6px; height: 6px; }
-.pbs-root ::-webkit-scrollbar-track { background: transparent; }
-.pbs-root ::-webkit-scrollbar-thumb { background: var(--bg-tertiary); border-radius: 3px; }
-.pbs-root ::-webkit-scrollbar-thumb:hover { background: var(--text-tertiary); }
-
 /* ---- Reference autocomplete ---- */
 .pbs-ref-dropdown {
   position: absolute;
@@ -579,4 +579,11 @@ export const CSS = `
   background: var(--accent-muted);
   color: var(--text-primary);
 }
+
+/* ---- Scrollbar ---- */
+.pbs-root ::-webkit-scrollbar { width: 6px; height: 6px; }
+.pbs-root ::-webkit-scrollbar-track { background: transparent; }
+.pbs-root ::-webkit-scrollbar-thumb { background: var(--bg-tertiary); border-radius: 3px; }
+.pbs-root ::-webkit-scrollbar-thumb:hover { background: var(--text-tertiary); }
+
 `;

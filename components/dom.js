@@ -128,7 +128,7 @@ export function searchBox(placeholder, onInput) {
 const GO_TO_SVG = "<svg xmlns='http://www.w3.org/2000/svg' x='0px' y='0px' viewBox='0 0 24 24' width='12' height='12' fill='currentColor'><path d='M 5 3 C 3.9069372 3 3 3.9069372 3 5 L 3 19 C 3 20.093063 3.9069372 21 5 21 L 19 21 C 20.093063 21 21 20.093063 21 19 L 21 12 L 19 12 L 19 19 L 5 19 L 5 5 L 12 5 L 12 3 L 5 3 z M 14 3 L 14 5 L 17.585938 5 L 8.2929688 14.292969 L 9.7070312 15.707031 L 19 6.4140625 L 19 10 L 21 10 L 21 3 L 14 3 z'></path></svg>";
 export function goToBtn(refKey, getValue, onNavigate) {
   if (!onNavigate || !refKey) return null;
-  return h('button', { style: { background: 'transparent', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: '12px', padding: '0 2px', lineHeight: '1', flexShrink: '0', alignSelf: 'center', display: 'inline-flex', alignItems: 'center' }, innerHTML: GO_TO_SVG, onClick: (e) => { e.stopPropagation(); const v = getValue(); if (v) onNavigate(refKey, v); }, onMouseEnter: (e) => { e.target.style.color = 'var(--accent)'; }, onMouseLeave: (e) => { e.target.style.color = 'var(--text-tertiary)'; } });
+  return h('button', { className: 'pbs-goto-btn', style: { background: 'transparent', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: '12px', padding: '0 2px', lineHeight: '1', flexShrink: '0', alignSelf: 'center', display: 'inline-flex', alignItems: 'center' }, innerHTML: GO_TO_SVG, onClick: (e) => { e.stopPropagation(); const v = getValue(); if (v) onNavigate(refKey, v); } });
 }
 
 // ---- Context menu ----
@@ -149,7 +149,9 @@ export function showContextMenu(x, y, items, host) {
 function closeContextMenu() { if (activeCtxMenu) { activeCtxMenu._cleanup?.(); activeCtxMenu.remove(); activeCtxMenu = null; } }
 
 // ---- Reference autocomplete ----
-// Shows suggestions from loaded PBS entries while typing.
+// Custom filtered dropdown (not native <datalist>): styleable, caps the list
+// at 20 rows so a 1000-entry Param source stays fast, and keeps its own arrow
+// navigation from bubbling to the entry-list keyboard handler.
 
 export function createRefInput(value, suggestions, onChange, placeholder) {
   const wrap = h('div', { style: { position: 'relative' } });
@@ -157,10 +159,10 @@ export function createRefInput(value, suggestions, onChange, placeholder) {
     type: 'text',
     value: String(value || ''),
     style: { width: '100%' },
+    title: String(value || ''), // full text on hover when the cell truncates it
   });
   if (placeholder) input.placeholder = placeholder;
   input.style.cssText += ';padding:3px 6px;border:1px solid var(--border);border-radius:3px;background:var(--input-bg);color:var(--text-primary);font-size:12px;font-family:inherit;outline:none;width:100%;';
-  input.addEventListener('focus', () => input.focus?.());
   // `suggestions` may be a static array or a function returning the current
   // list (the evolution Param list depends on the selected Method).
   const getList = () => (typeof suggestions === 'function' ? (suggestions() || []) : (suggestions || []));
@@ -190,6 +192,7 @@ export function createRefInput(value, suggestions, onChange, placeholder) {
       opt.addEventListener('mousedown', (e) => {
         e.preventDefault();
         input.value = item;
+        input.title = item;
         dropdown.style.display = 'none';
         onChange(item);
       });
@@ -202,6 +205,7 @@ export function createRefInput(value, suggestions, onChange, placeholder) {
     filterItems(q);
     activeIdx = -1;
     renderDropdown();
+    input.title = input.value;
     onChange(input.value);
   });
 
@@ -214,12 +218,15 @@ export function createRefInput(value, suggestions, onChange, placeholder) {
 
   input.addEventListener('keydown', (e) => {
     if (dropdown.style.display === 'none' || !filtered.length) return;
-    if (e.key === 'ArrowDown') { e.preventDefault(); activeIdx = Math.min(activeIdx + 1, filtered.length - 1); renderDropdown(); }
-    else if (e.key === 'ArrowUp') { e.preventDefault(); activeIdx = Math.max(activeIdx - 1, 0); renderDropdown(); }
+    // Stop propagation so the entry-list handler on the root doesn't also move
+    // the selected entry while the user navigates suggestions.
+    if (e.key === 'ArrowDown') { e.preventDefault(); e.stopPropagation(); activeIdx = Math.min(activeIdx + 1, filtered.length - 1); renderDropdown(); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); e.stopPropagation(); activeIdx = Math.max(activeIdx - 1, 0); renderDropdown(); }
     else if (e.key === 'Enter' || e.key === 'Tab') {
       if (activeIdx >= 0 && activeIdx < filtered.length) {
         e.preventDefault();
         input.value = filtered[activeIdx];
+        input.title = input.value;
         dropdown.style.display = 'none';
         onChange(input.value);
       }
@@ -228,5 +235,5 @@ export function createRefInput(value, suggestions, onChange, placeholder) {
 
   wrap.appendChild(input);
   wrap.appendChild(dropdown);
-  return { el: wrap, getValue: () => input.value, setValue: (v) => { input.value = v; } };
+  return { el: wrap, getValue: () => input.value, setValue: (v) => { input.value = v; input.title = v; } };
 }

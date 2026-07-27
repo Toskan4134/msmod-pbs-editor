@@ -11,11 +11,6 @@ export const TYPE_COLORS = {
   STEEL:'#B8B8D0', FAIRY:'#EE99AC',
 };
 
-export function typeBadge(typeName) {
-  const color = TYPE_COLORS[typeName.toUpperCase()] || '#888';
-  return `<span class="pbs-tag" style="background:${color}22;color:${color}">${typeName}</span>`;
-}
-
 // ---- Graphics config per file type and version ----
 // Entry can have _id (numeric) or InternalName for substitution.
 
@@ -25,8 +20,7 @@ function padId(entry) {
   return String(id).padStart(3, '0');
 }
 
-export function getGraphicPaths(fileType, entry, version) {
-  const paths = [];
+export function getPrimaryGraphic(fileType, entry, version) {
   const id = padId(entry);
   const name = entry.InternalName || '';
 
@@ -35,69 +29,21 @@ export function getGraphicPaths(fileType, entry, version) {
     const formSuffix = formIndex > 0 ? `_${formIndex}` : '';
     const formName = `${name}${formSuffix}`;
     const formId = formIndex > 0 ? `${id}_${formIndex}` : id;
-    if (version >= 21) {
-      paths.push({ path: `Graphics/Pokemon/Front/${formName}.png`, label: 'Front' });
-      paths.push({ path: `Graphics/Pokemon/Back/${formName}.png`, label: 'Back' });
-      paths.push({ path: `Graphics/Pokemon/Front shiny/${formName}.png`, label: 'Shiny' });
-      paths.push({ path: `Graphics/Pokemon/Front/${formName}_female.png`, label: 'Female' });
-      paths.push({ path: `Graphics/Pokemon/Icons/${formName}.png`, label: 'Icon' });
-      paths.push({ path: `Graphics/Pokemon/Icons shiny/${formName}.png`, label: 'Icon Shiny' });
-    } else if (version >= 17) {
-      paths.push({ path: `Graphics/Battlers/Front/${formId}.png`, label: 'Front' });
-      paths.push({ path: `Graphics/Battlers/Back/${formId}.png`, label: 'Back' });
-      paths.push({ path: `Graphics/Battlers/FrontShiny/${formId}.png`, label: 'Shiny' });
-      paths.push({ path: `Graphics/Battlers/Front/Female/${formId}.png`, label: 'Female' });
-      paths.push({ path: `Graphics/Icons/icon${formId}.png`, label: 'Icon' });
-    } else {
-      paths.push({ path: `Graphics/Battlers/${formId}.png`, label: 'Front' });
-      paths.push({ path: `Graphics/Battlers/${formId}b.png`, label: 'Back' });
-      paths.push({ path: `Graphics/Battlers/${formId}s.png`, label: 'Shiny' });
-      paths.push({ path: `Graphics/Battlers/${formId}f.png`, label: 'Female' });
-      paths.push({ path: `Graphics/Icons/icon${formId}.png`, label: 'Icon' });
-    }
-  } else if (fileType === 'trainers' || fileType === 'trainer_types') {
-    const trainerName = fileType === 'trainers' ? (entry.TrainerType || name) : name;
-    if (version >= 21) {
-      paths.push({ path: `Graphics/Trainers/${trainerName}.png`, label: 'Sprite' });
-    } else {
-      paths.push({ path: `Graphics/Characters/trainer${id}.png`, label: 'Sprite' });
-    }
-  } else if (fileType === 'items') {
-    if (version >= 21) {
-      paths.push({ path: `Graphics/Items/${name}.png`, label: 'Icon' });
-    } else {
-      paths.push({ path: `Graphics/Icons/item${id}.png`, label: 'Icon' });
-    }
+    if (version >= 21) return `Graphics/Pokemon/Front/${formName}.png`;
+    if (version >= 17) return `Graphics/Battlers/Front/${formId}.png`;
+    return `Graphics/Battlers/${formId}.png`;
   }
-  return paths;
+  if (fileType === 'trainers' || fileType === 'trainer_types') {
+    const trainerName = fileType === 'trainers' ? (entry.TrainerType || name) : name;
+    if (version >= 21) return `Graphics/Trainers/${trainerName}.png`;
+    return `Graphics/Characters/trainer${id}.png`;
+  }
+  if (fileType === 'items') {
+    if (version >= 21) return `Graphics/Items/${name}.png`;
+    return `Graphics/Icons/item${id}.png`;
+  }
+  return null;
 }
-
-export function getPrimaryGraphic(fileType, entry, version) {
-  const paths = getGraphicPaths(fileType, entry, version);
-  return paths.length ? paths[0].path : null;
-}
-
-// ---- Reference config ----
-// Maps field keys to which PBS file type they reference.
-// Used by the editor to provide autocomplete.
-export const FIELD_REFERENCES = {
-  // Pokemon
-  Types:         { ref: 'types', multi: true },
-  Abilities:     { ref: 'abilities', multi: true },
-  HiddenAbilities: { ref: 'abilities', multi: true },
-  EggGroups:     { list: ['Monster','Water1','Bug','Flying','Field','Fairy','Grass','HumanLike','Mineral','Amorphous','Ditto','Dragon','Undiscovered'] },
-  Color:         { list: ['Red','Blue','Yellow','Green','Black','Brown','Purple','Gray','White','Pink'] },
-  GenderRatio:   { list: ['AlwaysMale','AlwaysFemale','FemaleOneEighth','Female25Percent','Female50Percent','Female75Percent','Genderless'] },
-  GrowthRate:    { list: ['Medium','Fast','Slow','Erratic','Fluctuating'] },
-  // Moves
-  Type:          { ref: 'types', multi: false },
-  Category:      { list: ['Physical','Special','Status'] },
-  Target:        { list: ['OneOther','AllOther','User','AllBattlers','Ally','UserAndAllies','AllOnUserSide','AllOnOpposingSide','OneAlly','RandomOther','OneOpposing'] },
-  // Items
-  Pocket:        { list: ['1','2','3','4','5','6','7','8'] },
-  // Trainer types
-  Gender:        { list: ['Male','Female','Mixed'] },
-};
 
 // ---- SVG icon helper (Lucide-style) ----
 function _svg(d, sz = 16) {
