@@ -7,8 +7,11 @@ export default {
   // editor.js — toolbar
   "Search entries...": "Buscar entradas...",
   "Save": "Guardar",
+  "Discard": "Descartar",
   "+ New": "+ Nuevo",
   "Delete": "Eliminar",
+  "All files": "Todos los archivos",
+  "Base": "Base",
 
   // editor.js — states
   "Loading...": "Cargando...",
@@ -34,6 +37,8 @@ export default {
   // editor.js — dialogs
   "Unsaved Changes": "Cambios sin guardar",
   "You have unsaved changes in {fileType}. Discard?": "Tienes cambios sin guardar en {fileType}. ¿Descartar?",
+  "Discard Changes": "Descartar cambios",
+  "Discard all unsaved changes in {fileType}?": "¿Descartar todos los cambios sin guardar en {fileType}?",
   "New Entry": "Nueva entrada",
   "Enter name for new {type} entry:": "Nombre para la nueva entrada de {type}:",
   "Delete Entry": "Eliminar entrada",

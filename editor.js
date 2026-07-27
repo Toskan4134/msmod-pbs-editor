@@ -51,7 +51,6 @@ export class PbsEditor {
     this._navigating = false;
     this._metricsCache = null;
     this._fileFilter = null;
-    this._fileSuffixes = {};
 
     this.build();
   }
@@ -100,6 +99,42 @@ export class PbsEditor {
     ]) {
       const url = await this.loadImageBlob(base + '/' + c);
       if (url) { URL.revokeObjectURL(url); return c; }
+    }
+    return await this.findGraphicFile('Graphics', stem);
+  }
+
+  async findGraphicFile(dir, stem) {
+    const key = dir.toLowerCase() + '|' + stem.toLowerCase();
+    this._graphicSearchCache ||= new Map();
+    if (this._graphicSearchCache.has(key)) return this._graphicSearchCache.get(key);
+    this._graphicSearchCache.set(key, null); // guards against cycles / re-search
+
+    let entries = [];
+    try {
+      const list = await this.ctx.fs.listProjectDir(dir);
+      entries = (list || []).map(e => (typeof e === 'string' ? e : (e?.name || e?.path || '')));
+    } catch { entries = []; }
+
+    const norm = dir.replace(/\/+$/, '');
+    const want = stem.toLowerCase();
+    // First pass: any returned entry whose basename stem matches.
+    for (const e of entries) {
+      const clean = e.replace(/^[/\\]+/, '');
+      const baseName = clean.split(/[\\/]/).pop();
+      if (!baseName) continue;
+      if (baseName.replace(/\.[^.]+$/, '').toLowerCase() === want) {
+        const full = `${norm}/${clean}`.replace(/\/{2,}/g, '/');
+        this._graphicSearchCache.set(key, full);
+        return full;
+      }
+    }
+    // Second pass: recurse into immediate subdirectories.
+    for (const e of entries) {
+      const clean = e.replace(/^[/\\]+/, '');
+      if (!clean || clean.includes('/') || clean.includes('\\')) continue; // nested or empty
+      if (/\.[^.]+$/.test(clean)) continue; // a file, not a folder
+      const found = await this.findGraphicFile(`${norm}/${clean}`, stem);
+      if (found) { this._graphicSearchCache.set(key, found); return found; }
     }
     return null;
   }
@@ -337,15 +372,6 @@ export class PbsEditor {
       const base = getFilename(ft, this.version);
       this.files[ft].sort((a, b) => (a === base ? -1 : b === base ? 1 : 0));
     }
-    this._fileSuffixes = {};
-    for (const ft of Object.keys(this.files)) {
-      const base = getFilename(ft, this.version);
-      const baseName = base.replace(/\.txt$/i, '');
-      this._fileSuffixes[ft] = this.files[ft].map(f => ({
-        suffix: f.replace(/\.txt$/i, '').slice(baseName.length + 1),
-        file: f,
-      }));
-    }
   }
 
   filesFor(ft) {
@@ -532,15 +558,9 @@ export class PbsEditor {
     const ft = this.currentFileType;
     let entries = this.entries[ft];
     if (!entries) return [];
-    if (this._fileFilter !== null) {
+    if (this._fileFilter) {
       const base = getFilename(ft, this.version);
-      const baseName = base.replace(/\.txt$/i, '');
-      const suffix = this._fileFilter;
-      entries = entries.filter(e => {
-        const f = e._file || base;
-        const fSuffix = f.replace(/\.txt$/i, '').slice(baseName.length + 1);
-        return fSuffix === suffix;
-      });
+      entries = entries.filter(e => (e._file || base) === this._fileFilter);
     }
     if (this.searchQuery) {
       const q = this.searchQuery.toLowerCase();
@@ -696,7 +716,7 @@ export class PbsEditor {
       for (const section of config.sections) {
         const toggle = createSectionToggle(section.label);
         body.appendChild(toggle.toggle);
-         for (const fieldDef of section.fields) {
+        for (const fieldDef of section.fields) {
           const val = entry[fieldDef.key] || '';
           const editor = this.makeFieldEditor(fieldDef, val, entry, config);
           toggle.body.appendChild(editor);
@@ -734,28 +754,25 @@ export class PbsEditor {
     this.detailPanel.appendChild(body);
   }
 
+  // Only worth showing on v21, where a pack can drop `<base>_<suffix>.txt`
+  // extras next to the base file; earlier versions only ever have the one.
   buildFileFilter() {
     this.fileFilterBar.innerHTML = '';
-    if (this.version !== 21) {
-      this.fileFilterBar.style.display = 'none';
-      return;
-    }
-    const ft = this.currentFileType;
-    const suffixes = this._fileSuffixes[ft] || [];
-    if (suffixes.length <= 1) {
+    const files = this.files[this.currentFileType] || [];
+    if (this.version !== 21 || files.length <= 1) {
       this.fileFilterBar.style.display = 'none';
       return;
     }
     this.fileFilterBar.style.display = '';
-    const ALL = '\u2400';
-    const sel = h('select', { className: 'pbs-file-filter-select' });
-    sel.appendChild(h('option', { value: ALL, textContent: 'All', selected: this._fileFilter === null }));
-    for (const {suffix} of suffixes) {
-      sel.appendChild(h('option', { value: suffix, textContent: suffix || 'Base', selected: this._fileFilter === suffix }));
+    const baseName = getFilename(this.currentFileType, this.version).replace(/\.txt$/i, '');
+    const sel = h('select', { className: 'pbs-search', style: { width: '90px', fontSize: '11px' } });
+    sel.appendChild(h('option', { value: '', textContent: _t('All files') }));
+    for (const f of files) {
+      const label = f.replace(/\.txt$/i, '').slice(baseName.length + 1) || _t('Base');
+      sel.appendChild(h('option', { value: f, textContent: label }));
     }
-    sel.addEventListener('change', () => {
-      this.setFileFilter(sel.value === ALL ? null : sel.value);
-    });
+    sel.value = this._fileFilter || '';
+    sel.addEventListener('change', () => this.setFileFilter(sel.value || null));
     this.fileFilterBar.appendChild(sel);
   }
 
@@ -825,10 +842,13 @@ export class PbsEditor {
     if (!confirmed) return;
     const orig = this.originalEntries[ft];
     if (orig) this.entries[ft] = JSON.parse(JSON.stringify(orig));
+    // Discarding can shrink the list past the selection.
+    this.selectedIdx = Math.min(this.selectedIdx, this.entries[ft].length - 1);
     this.dirty.delete(ft);
     this.updateDirtyIndicator();
     this.renderTable();
     this.renderDetail();
+    this.updatePreview();
     this.updateStatusBar();
   }
 
