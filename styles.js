@@ -67,6 +67,30 @@ export const CSS = `
 .pbs-btn.danger:hover { background: var(--danger); color: #fff; }
 .pbs-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
+/* ---- File filter ---- */
+.pbs-file-filter-bar {
+  display: flex;
+  align-items: center;
+}
+.pbs-file-filter-select {
+  padding: 4px 22px 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--input-bg);
+  color: var(--text-primary);
+  font-size: 11px;
+  font-family: inherit;
+  outline: none;
+  -webkit-appearance: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23888888'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 6px center;
+  background-size: 8px auto;
+  cursor: pointer;
+}
+.pbs-file-filter-select:focus { border-color: var(--accent); }
+
 /* ---- Main 3-column layout ---- */
 .pbs-main {
   display: flex;

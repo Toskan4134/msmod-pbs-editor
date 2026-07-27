@@ -50,6 +50,8 @@ export class PbsEditor {
     this._historyIdx = -1;
     this._navigating = false;
     this._metricsCache = null;
+    this._fileFilter = null;
+    this._fileSuffixes = {};
 
     this.build();
   }
@@ -184,6 +186,8 @@ export class PbsEditor {
       if (v !== this.version) this.initWithVersion(v);
     });
     this.toolbar.appendChild(this.versionSelect);
+    this.fileFilterBar = h('div', { className: 'pbs-file-filter-bar', style: { display: 'none' } });
+    this.toolbar.appendChild(this.fileFilterBar);
     this.toolbar.appendChild(h('div', { className: 'pbs-toolbar-sep' }));
     this.toolbar.appendChild(h('div', { className: 'pbs-toolbar-spacer' }));
     this.searchInput = searchBox(_t('Search entries...'), (q) => { this.searchQuery = q; this.pagination.reset(); this.renderTable(); });
@@ -333,6 +337,15 @@ export class PbsEditor {
       const base = getFilename(ft, this.version);
       this.files[ft].sort((a, b) => (a === base ? -1 : b === base ? 1 : 0));
     }
+    this._fileSuffixes = {};
+    for (const ft of Object.keys(this.files)) {
+      const base = getFilename(ft, this.version);
+      const baseName = base.replace(/\.txt$/i, '');
+      this._fileSuffixes[ft] = this.files[ft].map(f => ({
+        suffix: f.replace(/\.txt$/i, '').slice(baseName.length + 1),
+        file: f,
+      }));
+    }
   }
 
   filesFor(ft) {
@@ -401,6 +414,7 @@ export class PbsEditor {
     this.currentFileType = ft;
     this.searchQuery = '';
     this.searchInput.value = '';
+    this._fileFilter = null;
 
     const items = this.sidebar.querySelectorAll('.pbs-sidebar-item');
     const types = getAvailableFileTypes(this.version);
@@ -424,6 +438,7 @@ export class PbsEditor {
     }
 
     this.pagination.reset();
+    this.buildFileFilter();
     this.renderTable();
     this.renderDetail();
     this.updatePreview();
@@ -515,17 +530,26 @@ export class PbsEditor {
   // ---- Table ----
   getPageEntries() {
     const ft = this.currentFileType;
-    const entries = this.entries[ft];
+    let entries = this.entries[ft];
     if (!entries) return [];
-    let rows = entries;
+    if (this._fileFilter !== null) {
+      const base = getFilename(ft, this.version);
+      const baseName = base.replace(/\.txt$/i, '');
+      const suffix = this._fileFilter;
+      entries = entries.filter(e => {
+        const f = e._file || base;
+        const fSuffix = f.replace(/\.txt$/i, '').slice(baseName.length + 1);
+        return fSuffix === suffix;
+      });
+    }
     if (this.searchQuery) {
       const q = this.searchQuery.toLowerCase();
       const config = getFileTypeConfig(ft);
-      rows = entries.filter(r =>
+      entries = entries.filter(r =>
         config.columns.some(c => String(r[c.key] ?? '').toLowerCase().includes(q))
       );
     }
-    return rows;
+    return entries;
   }
 
   _sortEntries(entries, config, sortCol, sortDir) {
@@ -710,6 +734,50 @@ export class PbsEditor {
     this.detailPanel.appendChild(body);
   }
 
+  buildFileFilter() {
+    this.fileFilterBar.innerHTML = '';
+    if (this.version !== 21) {
+      this.fileFilterBar.style.display = 'none';
+      return;
+    }
+    const ft = this.currentFileType;
+    const suffixes = this._fileSuffixes[ft] || [];
+    if (suffixes.length <= 1) {
+      this.fileFilterBar.style.display = 'none';
+      return;
+    }
+    this.fileFilterBar.style.display = '';
+    const ALL = '\u2400';
+    const sel = h('select', { className: 'pbs-file-filter-select' });
+    sel.appendChild(h('option', { value: ALL, textContent: 'All', selected: this._fileFilter === null }));
+    for (const {suffix} of suffixes) {
+      sel.appendChild(h('option', { value: suffix, textContent: suffix || 'Base', selected: this._fileFilter === suffix }));
+    }
+    sel.addEventListener('change', () => {
+      this.setFileFilter(sel.value === ALL ? null : sel.value);
+    });
+    this.fileFilterBar.appendChild(sel);
+  }
+
+  setFileFilter(filter) {
+    this._fileFilter = filter;
+    this.buildFileFilter();
+    const ft = this.currentFileType;
+    const entries = this.entries[ft];
+    if (entries && this.selectedIdx >= 0) {
+      const selectedEntry = entries[this.selectedIdx];
+      const filtered = this.getPageEntries();
+      if (!filtered.includes(selectedEntry) && filtered.length > 0) {
+        this.selectedIdx = entries.indexOf(filtered[0]);
+      }
+    }
+    this.pagination.reset();
+    this.renderTable();
+    this.renderDetail();
+    this.updatePreview();
+    this.updateStatusBar();
+  }
+
   // ---- Save ----
   // Each entry goes back to the file it was read from, so an extra file's
   // entries never get merged into the base file (and vice versa).
@@ -824,6 +892,8 @@ export class PbsEditor {
 
     entries.push(newEntry);
     this.selectedIdx = entries.length - 1;
+    this._fileFilter = null;
+    this.buildFileFilter();
 
     // Jump to last page
     const allFiltered = this.getPageEntries();
@@ -882,6 +952,8 @@ export class PbsEditor {
     if (copy.InternalName) copy.InternalName = copy.InternalName + '_COPY';
     entries.push(copy);
     this.selectedIdx = entries.length - 1;
+    this._fileFilter = null;
+    this.buildFileFilter();
     this.renderTable();
     this.renderDetail();
     this.updatePreview();
