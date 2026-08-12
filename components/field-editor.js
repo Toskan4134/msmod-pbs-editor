@@ -1,9 +1,22 @@
 import { h, _t, createRefInput, goToBtn, makeTypeIndicator, updateTypeIndicator } from './dom.js';
 
 // ---- Field editors ----
-export function createFieldEditor(fieldDef, value, onChange, refData, ctx, onNavigate) {
-  const wrap = h('div', { className: `pbs-field ${fieldDef.fullWidth ? 'full-width' : ''}` });
-  wrap.appendChild(h('label', { textContent: _t(fieldDef.label) }));
+// `ownership` (LBDS multi-file merge, see PbsEditor.fieldOwnership): null for
+// a plain field, or `{ state: 'inherited'|'overridden', tag, title, onAdopt? }`.
+// 'inherited' mutes the field (CSS turns off pointer-events on its controls)
+// and offers "Override here" to start owning it in the active file filter;
+// 'overridden' is informational only (All-files view), still fully editable.
+export function createFieldEditor(fieldDef, value, onChange, refData, ctx, onNavigate, ownership) {
+  const wrap = h('div', { className: `pbs-field ${fieldDef.fullWidth ? 'full-width' : ''} ${ownership ? 'pbs-field-' + ownership.state : ''}` });
+  const labelRow = h('div', { className: 'pbs-field-label-row' });
+  labelRow.appendChild(h('label', { textContent: _t(fieldDef.label) }));
+  if (ownership) {
+    labelRow.appendChild(h('span', { className: 'pbs-field-tag', textContent: ownership.tag, title: ownership.title }));
+    if (ownership.onAdopt) {
+      labelRow.appendChild(h('button', { className: 'pbs-field-adopt', type: 'button', textContent: _t('Override here'), onClick: () => ownership.onAdopt() }));
+    }
+  }
+  wrap.appendChild(labelRow);
   const type = fieldDef.type || 'text';
 
   // Get suggestions for reference fields

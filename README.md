@@ -12,21 +12,45 @@ directly inside the map editor. Supports v16, v17, and v21 data formats.
 3. Reads and writes PBS files from the project's `PBS/` directory via the mod API
    (`ctx.fs.readProjectFile` / `ctx.fs.writeProjectFile`).
 4. Detects the Essentials version from `pokemon.txt` format and lets you switch between
-   v16 / v17 / v21 in the toolbar.
+   v16 / v17 / v21 in the toolbar, plus a separate **LBDS** entry for La Base de Sky's
+   v21 + JSON PBS + field-level merge behavior. Picking plain **v21** always parses
+   vanilla Essentials semantics — no JSON files, no cross-file field merge, duplicate
+   sections listed as-is — even if `.json` PBS files exist in `PBS/`.
+   - On first run (nothing saved yet), the toolbar pre-selects **LBDS** automatically
+     when `ctx.editor.isLbdsProject()` reports the project runs an LBDS integration
+     build (needs Maker Studio with that API; older builds just keep the v21 default).
+     A saved choice always wins — the guess never overrides a pick you already made.
 5. Picks up **extra PBS files** the same way the Essentials compiler does: `<base>_*.txt`
    (e.g. `pokemon_juego.txt`) is loaded alongside `pokemon.txt`, and each entry is saved
    back to the file it came from, so packs don't get overwritten. The longest base name
    wins, so `pokemon_metrics.txt` is never mistaken for a `pokemon` extra.
-5. Supports **11 file types**: Pokemon, Pokemon Forms, Moves, Abilities, Items, Types,
+   - **JSON PBS (La Base de Sky, v21+)**: `.json` PBS files are read and written too.
+     A `.txt` always shadows a same-named `.json` (same rule as the compiler).
+     A section repeated in a later file is **merged field-by-field** (compiler
+     semantics): the table shows the effective data and each field saves back to
+     its own file, so an override `.json` stays minimal. Stats and
+     Moves/Evolutions are written as positional arrays, and `!exclude` has no
+     JSON representation (excluded entries in a `.json` save back as normal
+     entries). Encounters/trainers compile as whole-section replacement, so
+     duplicates stay listed separately (use the file filter to tell them apart).
+   - **Per-file ownership colors**: with the file filter set to one file, fields it
+     doesn't own show their inherited (merged) value grayed out and tagged with the
+     real owner, plus an **Override here** button that starts owning the field in
+     that file. With **All files** selected, fields whose effective value comes
+     from a non-base file are tagged and accent-colored so an override is visible
+     without switching tabs. Table cells get the same coloring. Editing a field
+     that's still shown as inherited always writes back to whichever file
+     currently owns it — `Override here` is the only way to change that.
+6. Supports **11 file types**: Pokemon, Pokemon Forms, Moves, Abilities, Items, Types,
    Encounters, Trainers, Trainer Types, Town Map, and TM (v16/v17 only).
-6. Provides typed field editors for each file type — stat bars, EV dropdowns, list editors
+7. Provides typed field editors for each file type — stat bars, EV dropdowns, list editors
    with autocomplete from other loaded files, BGM file pickers, evolution triplets, etc.
-7. **Cross-reference navigation**: "Go to" buttons on reference fields jump to the
+8. **Cross-reference navigation**: "Go to" buttons on reference fields jump to the
    referenced entry in another PBS file, with back/forward history.
-8. **Sprite preview** shows front/back/shiny graphics for Pokemon and Trainer sprites,
+9. **Sprite preview** shows front/back/shiny graphics for Pokemon and Trainer sprites,
    including animated spritesheet playback using `pokemon_metrics.txt` speed data.
-9. Full CRUD: add, duplicate, delete, toggle exclude (`!exclude`) via context menu.
-10. Unsaved-change tracking with dirty indicator, confirmation on close/switch, and
+10. Full CRUD: add, duplicate, delete, toggle exclude (`!exclude`) via context menu.
+11. Unsaved-change tracking with dirty indicator, confirmation on close/switch, and
     **Ctrl+S** save.
 
 ### Supported PBS files
@@ -70,6 +94,7 @@ directly inside the map editor. Supports v16, v17, and v21 data formats.
 | `editor.js` | `PbsEditor` class — main UI controller (3-column layout, table, detail, save, CRUD) |
 | `parsers.js` | Pure parsers: PBS text → structured data per file type and version |
 | `writers.js` | Pure writers: structured data → PBS text per file type and version |
+| `json.js` | JSON PBS support (La Base de Sky): JSON ↔ entry model, reusing the v21 parsers |
 | `components.js` | Barrel — re-exports everything under `components/` |
 | `components/dom.js` | Core DOM helpers — `h`, buttons, search, autocomplete, type-icon indicators, context menu, shared i18n (`_t`) |
 | `components/table.js` | Table, pagination, preview panel, collapsible sections |

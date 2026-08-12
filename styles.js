@@ -307,6 +307,46 @@ export const CSS = `
   text-transform: uppercase;
   letter-spacing: 0.3px;
 }
+/* ---- Multi-file ownership (LBDS field-by-field merge) ---- */
+.pbs-field-label-row { display: flex; align-items: center; gap: 6px; }
+.pbs-field-tag {
+  font-size: 9px;
+  font-weight: 600;
+  padding: 1px 5px;
+  border-radius: 3px;
+  text-transform: none;
+  letter-spacing: 0;
+  white-space: nowrap;
+}
+.pbs-field-adopt {
+  font-size: 9px;
+  padding: 1px 5px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: var(--bg-hover);
+  color: var(--text-secondary);
+  cursor: pointer;
+  margin-left: auto;
+}
+.pbs-field-adopt:hover { border-color: var(--accent); color: var(--text-primary); }
+/* Filtered to one file: fields it doesn't own show the inherited value, muted
+   and non-interactive — "Override here" is the only live control. */
+.pbs-field-inherited .pbs-field-tag { background: var(--bg-hover); color: var(--text-tertiary); }
+.pbs-field-inherited input,
+.pbs-field-inherited select,
+.pbs-field-inherited textarea,
+.pbs-field-inherited :is(.pbs-list-editor, .pbs-stat-row) :is(input, select, button):not(.pbs-field-adopt) {
+  opacity: 0.55;
+  pointer-events: none;
+}
+/* All-files view: field's effective value comes from a non-base file — still
+   fully editable, just flagged so the override is visible without switching tabs. */
+.pbs-field-overridden .pbs-field-tag { background: var(--accent-muted); color: var(--accent-text); }
+.pbs-field-overridden input,
+.pbs-field-overridden select,
+.pbs-field-overridden textarea { border-color: var(--accent); }
+.pbs-cell-inherited { color: var(--text-tertiary); font-style: italic; }
+.pbs-cell-overridden { color: var(--accent-text); font-weight: 600; }
 .pbs-field input,
 .pbs-field select,
 .pbs-field textarea {

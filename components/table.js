@@ -202,7 +202,8 @@ export function createTable(columns, rows, options = {}) {
       const tr = h('tr', { className: `${i === selectedIdx ? 'selected' : ''} ${row._excluded ? 'excluded' : ''}` });
       for (const col of columns) {
         const val = row[col.key] ?? '';
-        const td = h('td', { textContent: col.numeric ? (parseInt(val) || '') : String(val) });
+        const cls = options.cellClass ? options.cellClass(row, col) : '';
+        const td = h('td', { className: cls, textContent: col.numeric ? (parseInt(val) || '') : String(val) });
         // ponytail: set title only when text overflows, checked lazily on hover (no reflow at render)
         td.addEventListener('mouseenter', () => { td.title = td.scrollWidth > td.clientWidth ? String(val) : ''; });
         tr.appendChild(td);
