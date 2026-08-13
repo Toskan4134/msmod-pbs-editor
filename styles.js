@@ -279,7 +279,11 @@ export const CSS = `
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  flex-shrink: 0;
+  /* flex-shrink:0 here pinned the pane at exactly 440px no matter how narrow
+     the window got — .pbs-main's overflow:hidden then silently clipped
+     whatever didn't fit instead of letting the pane shrink toward
+     min-width like it's supposed to. */
+  flex-shrink: 1;
   background: var(--bg-secondary);
 }
 
@@ -399,7 +403,11 @@ export const CSS = `
 .pbs-detail-body {
   padding: 8px 10px;
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  /* auto-fit instead of a hard 1fr 1fr: on a narrow pane (small window, or
+     the user dragged the resizer down) this collapses to a single column on
+     its own instead of squeezing two 150px+ columns into less room than
+     that and overflowing sideways. */
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: 5px 14px;
 }
 
@@ -477,6 +485,13 @@ export const CSS = `
 .pbs-field textarea:focus { border-color: var(--accent); }
 .pbs-field textarea { min-height: 140px; resize: vertical; }
 .pbs-field input[type="number"] { width: 70px; }
+.pbs-field input[type="checkbox"] {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--accent);
+  cursor: pointer;
+  flex-shrink: 0;
+}
 .pbs-field select {
   -webkit-appearance: none;
   appearance: none;
