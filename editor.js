@@ -14,11 +14,13 @@ import {
   createTable,
   createTrainerPokemonEditor,
   h,
+  normalizeSearch,
   searchBox,
   showContextMenu,
 } from './components.js';
-import { getFileTypeConfig, getPrimaryGraphic } from './file-types.js';
+import { getFileTypeConfig, getIconGraphic, getPokemonSpriteVariants, getPrimaryGraphic } from './file-types.js';
 import { getAvailableFileTypes, getFilename, matchFileType, parsePbsFile } from './parsers.js';
+import { parseJsonPbs, writeJsonPbs } from './json.js';
 import { CSS } from './styles.js';
 import { writePbsFile } from './writers.js';
 
@@ -33,11 +35,91 @@ const ICON_DISCARD = _tbSvg('<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2
 
 const PAGE_SIZE = 50;
 
+// File types that never have an associated graphic — the preview pane is
+// hidden entirely for them instead of showing a permanent "No graphic" box.
+const NO_GRAPHIC_TYPES = new Set(['moves', 'abilities', 'encounters', 'tm']);
+
+// Materialized from the section header by the parsers, not real fields —
+// they must never take part in merge provenance or be written to JSON.
+const HEADER_DERIVED = new Set(['InternalName', 'FormIndex']);
+
+// Records which file each field of an entry came from (`_fieldFiles`), so a
+// section merged from several files saves each field back to its own file.
+function stampFieldFiles(entry, fname) {
+  entry._fieldFiles = {};
+  for (const k of Object.keys(entry)) if (!k.startsWith('_')) entry._fieldFiles[k] = fname;
+  for (const k of Object.keys(entry._extra || {})) entry._fieldFiles[k] = fname;
+}
+
+// When a later file overrides a field, the earlier file keeps its own (now
+// shadowed) line on save — the compiler's field merge makes the winner
+// effective in-game either way, and the base file is not rewritten for no
+// reason. ponytail: only one level deep; with 3+ overriding files a middle
+// file loses its shadowed copy (compiled data still identical).
+function keepOverriddenValue(prev, k, fname) {
+  const prevFile = prev._fieldFiles[k];
+  if (prevFile && prevFile !== fname) {
+    const value = (k in (prev._extra || {})) ? prev._extra[k] : prev[k];
+    if (value !== '' && value !== undefined) {
+      (prev._overridden ||= {})[k] = { file: prevFile, value };
+    }
+  }
+}
+
+// Per-file view of a merged entry: each file gets the fields it owns (the
+// winner's current value) plus any shadowed value it originally held.
+// Returns null when nothing lands there.
+function projectEntryForFile(entry, fname) {
+  const ff = entry._fieldFiles || {};
+  const ownerOf = (k) => ff[k] || entry._file;
+  const copy = {
+    _id: entry._id, _header: entry._header, _excluded: entry._excluded,
+    _file: fname, _evoFormat: entry._evoFormat, _sep: entry._sep,
+    _extra: {},
+  };
+  // Identity fields belong to every file that touches the section (its header
+  // IS `InternalName`/`FormIndex`), not to whichever file loaded first — show
+  // them regardless of filter. Writers never emit them for v21 (they come from
+  // the section header on save), so carrying them here is display-only, no
+  // risk of duplicating them into the written file.
+  for (const k of HEADER_DERIVED) if (entry[k] !== undefined && entry[k] !== '') copy[k] = entry[k];
+  let any = false;
+  for (const k of Object.keys(entry)) {
+    if (k.startsWith('_')) continue;
+    const shadow = entry._overridden?.[k];
+    if (shadow?.file === fname) {
+      copy[k] = shadow.value;
+      any = true;
+      continue;
+    }
+    if (entry[k] === '' || entry[k] === undefined || ownerOf(k) !== fname) continue;
+    copy[k] = entry[k];
+    any = true;
+  }
+  for (const [k, v] of Object.entries(entry._extra || {})) {
+    const shadow = entry._overridden?.[k];
+    if (shadow?.file === fname) {
+      copy._extra[k] = shadow.value;
+      any = true;
+      continue;
+    }
+    if (v === '' || ownerOf(k) !== fname) continue;
+    copy._extra[k] = v;
+    any = true;
+  }
+  if (entry._encounters) copy._encounters = entry._encounters;
+  if (entry._pokemon) copy._pokemon = entry._pokemon;
+  if ((entry._encounters || entry._pokemon) && ownerOf('Name') === fname) any = true;
+  copy._order = (entry._order || []).filter(k => k in copy || k in copy._extra);
+  return any ? copy : null;
+}
+
 export class PbsEditor {
   constructor(ctx, host) {
     this.ctx = ctx;
     this.host = host;
     this.version = null;
+    this.lbds = false;   // La Base de Sky mode: v21 + JSON PBS + field-level section merge
     this.currentFileType = null;
     this.entries = {};
     this.originalEntries = {};
@@ -82,6 +164,7 @@ export class PbsEditor {
         const typeCount = this.entries.types?.length || 19;
         const iconH = Math.round(img.naturalHeight / typeCount);
         configureTypeIcons(url, img.naturalWidth, iconH, img.naturalHeight);
+        this._refreshTypeVisuals();
       };
       img.src = url;
     } catch { /* sprite not found — colored fallback used */ }
@@ -139,33 +222,47 @@ export class PbsEditor {
     return null;
   }
 
-  async loadMetrics() {    if (this._metricsCache) return this._metricsCache;
+  // Per-species (or per-form) SpeciesMetrics section: { speed, backOffset:
+  // [x,y], frontOffset: [x,y], frontAltitude }. Keyed by `NAME` or
+  // `NAME_FormIndex` — same convention as getPrimaryGraphic's form suffix.
+  async loadMetrics() {
+    if (this._metricsCache) return this._metricsCache;
     this._metricsCache = {};
     try {
       const fname = this.version >= 21 ? 'pokemon_metrics.txt' : '';
       if (!fname) return this._metricsCache;
       const raw = await this.readFile('PBS/' + fname);
-      const lines = raw.split(/\r?\n/);
-      for (const line of lines) {
-        const t = line.trim();
-        const m = t.match(/^\[(.+?)\](!exclude)?$/);
-        if (!m) continue;
-        const name = m[1];
-        // Scan following lines for Speed
-        const idx = lines.indexOf(line);
-        let speed = null;
-        for (let j = idx + 1; j < lines.length; j++) {
-          const lt = lines[j].trim();
-          if (lt.startsWith('[')) break;
-          if (lt.startsWith('Speed')) {
-            const eq = lt.indexOf('=');
-            if (eq >= 0) speed = parseInt(lt.slice(eq + 1).trim());
-          }
+      let current = null;
+      for (const rawLine of raw.split(/\r?\n/)) {
+        const t = rawLine.trim();
+        const header = t.match(/^\[(.+?)\](!exclude)?$/);
+        if (header) {
+          // `[SPECIES]` or `[SPECIES,FormIndex]`
+          const [name, formStr] = header[1].split(',').map(s => s.trim());
+          const form = parseInt(formStr) || 0;
+          current = (this._metricsCache[form > 0 ? `${name}_${form}` : name] ||= {});
+          continue;
         }
-        if (speed != null) this._metricsCache[name] = speed;
+        if (!current) continue;
+        const eq = t.indexOf('=');
+        if (eq < 0) continue;
+        const field = t.slice(0, eq).trim();
+        const val = t.slice(eq + 1).trim();
+        if (field === 'Speed') current.speed = parseInt(val);
+        else if (field === 'BackSprite') current.backOffset = val.split(',').map(n => parseInt(n.trim()) || 0);
+        else if (field === 'FrontSprite') current.frontOffset = val.split(',').map(n => parseInt(n.trim()) || 0);
+        else if (field === 'FrontSpriteAltitude') current.frontAltitude = parseInt(val) || 0;
       }
     } catch { /* metrics file may not exist */ }
     return this._metricsCache;
+  }
+
+  // A form with no metrics entry of its own inherits the base species' one.
+  metricsFor(metrics, entry, fileType) {
+    const name = entry.InternalName || '';
+    const form = fileType === 'pokemon_forms' ? (parseInt(entry.FormIndex) || 0) : 0;
+    if (form > 0) return metrics[`${name}_${form}`] || metrics[name] || {};
+    return metrics[name] || {};
   }
 
   spriteSpeedToFps(speed) {
@@ -177,11 +274,20 @@ export class PbsEditor {
 
   async getSpriteFps(entry, fileType) {
     if (fileType !== 'pokemon' && fileType !== 'pokemon_forms') return undefined;
-    const name = entry.InternalName || '';
     const metrics = await this.loadMetrics();
-    const speed = metrics[name];
+    const speed = this.metricsFor(metrics, entry, fileType).speed;
     const fps = this.spriteSpeedToFps(speed);
     return fps !== undefined ? fps : 16;
+  }
+
+  // Raw (un-doubled) Y from SpeciesMetrics#back_sprite — same field the
+  // Pokédex forms page nudges the back sprite by. No SpeciesMetrics pre-v21,
+  // so back just bottom-aligns as-is there.
+  async getBackOffsetY(entry, fileType) {
+    if (this.version < 21) return 0;
+    const metrics = await this.loadMetrics();
+    const m = this.metricsFor(metrics, entry, fileType);
+    return m.backOffset?.[1] || 0;
   }
 
   build() {
@@ -216,9 +322,11 @@ export class PbsEditor {
     for (const v of [16, 17, 21]) {
       this.versionSelect.appendChild(h('option', { value: String(v), textContent: `v${v}` }));
     }
+    this.versionSelect.appendChild(h('option', { value: 'lbds', textContent: 'LBDS' }));
     this.versionSelect.addEventListener('change', () => {
-      const v = parseInt(this.versionSelect.value);
-      if (v !== this.version) this.initWithVersion(v);
+      const lbds = this.versionSelect.value === 'lbds';
+      const v = lbds ? 21 : parseInt(this.versionSelect.value);
+      if (v !== this.version || lbds !== this.lbds) this.initWithVersion(v, lbds);
     });
     this.toolbar.appendChild(this.versionSelect);
     this.fileFilterBar = h('div', { className: 'pbs-file-filter-bar', style: { display: 'none' } });
@@ -251,6 +359,11 @@ export class PbsEditor {
     this.centerCol.appendChild(this.pagination.el);
     this.mainLayout.appendChild(this.centerCol);
 
+    // Drag handle: lets the user widen the detail pane themselves (some file
+    // types like Encounters only need 2 table columns and could use the room).
+    this.resizer = h('div', { className: 'pbs-resizer' });
+    this.mainLayout.appendChild(this.resizer);
+
     // Right: preview + detail
     this.rightCol = h('div', { className: 'pbs-right' });
     this.previewPanel = createPreviewPanel((p) => this.loadImageBlob(p));
@@ -260,6 +373,32 @@ export class PbsEditor {
     this.mainLayout.appendChild(this.rightCol);
 
     this.root.appendChild(this.mainLayout);
+    this.initResizer();
+  }
+
+  // Drag pbs-resizer to resize the detail pane. Session-only (not persisted) —
+  // the default width already fits most file types; this just covers the ones
+  // that don't (Encounters' 2-column table, long Forms names, etc).
+  initResizer() {
+    let startX = 0, startWidth = 0;
+    const onMove = (e) => {
+      const delta = startX - e.clientX; // dragging left grows the right pane
+      const min = 320, max = Math.round(this.mainLayout.clientWidth * 0.7);
+      this.rightCol.style.width = Math.max(min, Math.min(max, startWidth + delta)) + 'px';
+    };
+    const onUp = () => {
+      this.resizer.classList.remove('dragging');
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    };
+    this.resizer.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      startX = e.clientX;
+      startWidth = this.rightCol.getBoundingClientRect().width;
+      this.resizer.classList.add('dragging');
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    });
   }
 
   buildStatusBar() {
@@ -304,25 +443,37 @@ export class PbsEditor {
 
   // ---- Version selection ----
   async loadSavedVersion() {
-    let v = null;
+    let saved = null;
     try {
-      const saved = await this.ctx.storage.get('pbs_version');
-      if (saved) v = parseInt(saved);
+      saved = await this.ctx.storage.get('pbs_version');
     } catch { /* storage unavailable */ }
 
+    // First run (nothing saved yet): ask Maker Studio what the project actually
+    // is instead of defaulting to plain v21. Older Maker Studio builds lack
+    // isLbdsProject — `?.()` just skips the guess and keeps the v21 default.
+    // A saved choice always wins; auto-detect never overrides an explicit pick.
+    if (saved === null) {
+      try {
+        if (await this.ctx.editor.isLbdsProject?.()) saved = 'lbds';
+      } catch { /* detection unavailable — fall through to default */ }
+    }
+
+    const lbds = saved === 'lbds';
+    let v = lbds ? 21 : parseInt(saved);
     if (!v || ![16, 17, 21].includes(v)) v = 21;
-    this.versionSelect.value = String(v);
+    this.versionSelect.value = lbds ? 'lbds' : String(v);
     try {
-      await this.initWithVersion(v);
+      await this.initWithVersion(v, lbds);
     } catch (e) {
       console.error('PBS Editor init failed:', e);
       this.showError('Init failed: ' + (e?.message || e));
     }
   }
 
-  async initWithVersion(v) {
+  async initWithVersion(v, lbds = false) {
     this.version = v;
-    this.versionSelect.value = String(v);
+    this.lbds = lbds;
+    this.versionSelect.value = lbds ? 'lbds' : String(v);
     this.entries = {};
     this.originalEntries = {};
     this.selectedIdx = -1;
@@ -331,7 +482,7 @@ export class PbsEditor {
     this.gameRoot = '';
     try { this.gameRoot = this.ctx.editor?.gameRoot?.() || ''; } catch {}
 
-    try { await this.ctx.storage.set('pbs_version', String(v)); } catch {}
+    try { await this.ctx.storage.set('pbs_version', lbds ? 'lbds' : String(v)); } catch {}
 
     clearTypeIcons();
     this.loadTypeIcons();
@@ -350,7 +501,8 @@ export class PbsEditor {
 
   // ---- PBS files ----
   // A file type can span several files: the base one plus any `<base>_*.txt`
-  // extras a pack dropped in, which Essentials compiles together.
+  // (or `<base>_*.json` on La Base de Sky) extras a pack dropped in, which
+  // Essentials compiles together.
   async scanPbsDir() {
     this.files = {};
     let names = [];
@@ -359,11 +511,18 @@ export class PbsEditor {
       names = (list || [])
         .map(e => (typeof e === 'string' ? e : e?.name || e?.path || ''))
         .map(n => n.split(/[\\/]/).pop())
-        .filter(n => /\.txt$/i.test(n));
+        .filter(n => (this.lbds ? /\.(txt|json)$/i : /\.txt$/i).test(n));
     } catch { /* no listing available — fall back to the base file only */ }
 
+    if (this.lbds) {
+      // Mirror the compiler: a .txt always wins over a .json with the same base
+      // name, so editing that .json would have no effect in-game.
+      const txtBases = new Set(names.filter(n => /\.txt$/i.test(n)).map(n => n.replace(/\.txt$/i, '')));
+      names = names.filter(n => !/\.json$/i.test(n) || !txtBases.has(n.replace(/\.json$/i, '')));
+    }
+
     for (const name of names.sort()) {
-      const ft = matchFileType(name, this.version);
+      const ft = matchFileType(name, this.version, this.lbds);
       if (!ft) continue;
       (this.files[ft] ||= []).push(name);
     }
@@ -382,14 +541,49 @@ export class PbsEditor {
 
   async loadEntries(ft) {
     const all = [];
+    const byHeader = new Map();
     for (const fname of this.filesFor(ft)) {
+      let parsed;
       try {
         const content = await this.readFile('PBS/' + fname);
-        for (const entry of parsePbsFile(content, ft, this.version)) {
-          entry._file = fname;   // remembered so saving writes it back where it came from
+        // `partial` (LBdS): repeated sections merge field-by-field across
+        // files, so an override file (txt or json) may hold only the fields it
+        // changes — sections without Name must not be dropped.
+        parsed = /\.json$/i.test(fname)
+          ? parseJsonPbs(content, ft)
+          : parsePbsFile(content, ft, this.version, this.lbds);
+      } catch { continue; /* file listed but unreadable — skip it */ }
+      for (const entry of parsed) {
+        entry._file = fname;   // remembered so saving writes it back where it came from
+        stampFieldFiles(entry, fname);
+        const key = String(entry._header ?? entry._id);
+        const prev = byHeader.get(key);
+        // Vanilla Essentials has no cross-file section merge: list everything.
+        // Encounters/trainers compile as whole-section replacement even on
+        // LBdS; showing only the winner would delete the loser on save, so
+        // both stay listed (the per-file filter tells them apart).
+        if (!prev || !this.lbds || ft === 'encounters' || ft === 'trainers') {
+          if (!prev) byHeader.set(key, entry);
           all.push(entry);
+          continue;
         }
-      } catch { /* file listed but unreadable — skip it */ }
+        // LBdS, same section in a later file: the compiler merges
+        // field-by-field (later wins), so the editor shows the same effective
+        // data and remembers each field's file for saving.
+        for (const k of Object.keys(entry)) {
+          if (k.startsWith('_') || HEADER_DERIVED.has(k) || entry[k] === '') continue;
+          keepOverriddenValue(prev, k, fname);
+          prev[k] = entry[k];
+          prev._fieldFiles[k] = fname;
+        }
+        for (const [k, v] of Object.entries(entry._extra || {})) {
+          if (v === '') continue;
+          keepOverriddenValue(prev, k, fname);
+          (prev._extra ||= {})[k] = v;
+          prev._fieldFiles[k] = fname;
+        }
+        if (entry.Evolutions) prev._evoFormat = entry._evoFormat;
+      }
     }
     return all;
   }
@@ -419,8 +613,30 @@ export class PbsEditor {
     if (!this.entries[ft]) {
       this.entries[ft] = await this.loadEntries(ft);
       this.originalEntries[ft] = JSON.parse(JSON.stringify(this.entries[ft]));
+      // Types loads in the background for every version (sidebar badge count);
+      // once it lands, any table already showing type badges needs a repaint
+      // to pick up real icon positions instead of the color-swatch fallback.
+      if (ft === 'types') this._refreshTypeVisuals();
     }
     badgeEl.textContent = String(this.entries[ft].length);
+  }
+
+  // Name (uppercase) -> IconPosition for the type-icon sprite. Null until
+  // `entries.types` has loaded (background load kicked off from the sidebar).
+  typeIconLookup() {
+    const list = this.entries.types;
+    if (!list) return null;
+    const map = {};
+    for (const t of list) {
+      const name = (t.InternalName || t.Name || '').toUpperCase();
+      const pos = parseInt(this.version >= 21 ? t.IconPosition : t._id);
+      if (name && !isNaN(pos)) map[name] = pos;
+    }
+    return map;
+  }
+
+  _refreshTypeVisuals() {
+    if (this.currentFileType) this.renderTable();
   }
 
   // ---- File selection ----
@@ -554,19 +770,25 @@ export class PbsEditor {
   }
 
   // ---- Table ----
+  // A merged entry (LBDS field-by-field merge) is ONE object shared by every
+  // file that touches it — `entry._file` only ever names the first file it was
+  // seen in, so filtering by that equality hid every other owner's rows.
+  // `projectEntryForFile` (already used for saving) is the real per-file
+  // membership test: does this file own at least one field. Rows keep showing
+  // the full merged/effective values (not just this file's own) — inherited
+  // vs. owned is a per-field color, not a blank cell (see `fieldOwnership`).
   getPageEntries() {
     const ft = this.currentFileType;
     let entries = this.entries[ft];
     if (!entries) return [];
     if (this._fileFilter) {
-      const base = getFilename(ft, this.version);
-      entries = entries.filter(e => (e._file || base) === this._fileFilter);
+      entries = entries.filter(e => projectEntryForFile(e, this._fileFilter) !== null);
     }
     if (this.searchQuery) {
-      const q = this.searchQuery.toLowerCase();
+      const q = normalizeSearch(this.searchQuery);
       const config = getFileTypeConfig(ft);
       entries = entries.filter(r =>
-        config.columns.some(c => String(r[c.key] ?? '').toLowerCase().includes(q))
+        config.columns.some(c => normalizeSearch(r[c.key] ?? '').includes(q))
       );
     }
     return entries;
@@ -611,6 +833,14 @@ export class PbsEditor {
 
     this.table = createTable(config.columns, pageRows, {
       sortCol, sortDir,
+      rowIcon: config.rowIcon ? (row) => getIconGraphic(ft, row, this.version) : null,
+      gameRoot: this.gameRoot,
+      loadIcon: (p) => this.loadImageBlob(p),
+      typeIconLookup: this.typeIconLookup(),
+      cellClass: (row, col) => {
+        const o = this.fieldOwnership(row, col.key);
+        return o ? `pbs-cell-${o.state}` : '';
+      },
       selectedIdx: (() => {
         const idx = allFiltered.indexOf(this.entries[ft][this.selectedIdx]);
         return idx >= start && idx < start + PAGE_SIZE ? idx - start : -1;
@@ -648,6 +878,8 @@ export class PbsEditor {
   async updatePreview() {
     const ft = this.currentFileType;
     const config = getFileTypeConfig(ft);
+    this.previewPanel.el.style.display = NO_GRAPHIC_TYPES.has(ft) ? 'none' : '';
+    if (NO_GRAPHIC_TYPES.has(ft)) return;
     if (!config || this.selectedIdx < 0 || !this.entries[ft]) {
       this.previewPanel.clear();
       return;
@@ -670,6 +902,15 @@ export class PbsEditor {
       return;
     }
 
+    if (ft === 'pokemon' || ft === 'pokemon_forms') {
+      const displayVal = entry[config.displayField] || entry[config.headerField] || '';
+      const variants = getPokemonSpriteVariants(ft, entry, this.version);
+      const fps = await this.getSpriteFps(entry, ft);
+      const backOffsetY = await this.getBackOffsetY(entry, ft);
+      this.previewPanel.showPokemon(this.gameRoot, variants, displayVal, fps, backOffsetY);
+      return;
+    }
+
     const path = getPrimaryGraphic(ft, entry, this.version);
     const displayVal = entry[config.displayField] || entry[config.headerField] || '';
     const fps = await this.getSpriteFps(entry, ft);
@@ -679,13 +920,14 @@ export class PbsEditor {
   // ---- Detail ----
   makeFieldEditor(fieldDef, val, entry, config) {
     const onNavigate = (refType, name) => this.navigateTo(refType, name);
+    const ownership = this.fieldOwnership(entry, fieldDef.key);
     return createFieldEditor(fieldDef, val, (newVal) => {
       entry[fieldDef.key] = newVal;
       this.markDirty();
       if (config.columns.some(c => c.key === fieldDef.key)) {
         this.renderTable();
       }
-    }, this.entries, this.ctx, onNavigate);
+    }, this.entries, this.ctx, onNavigate, ownership);
   }
 
   renderDetail() {
@@ -754,6 +996,42 @@ export class PbsEditor {
     this.detailPanel.appendChild(body);
   }
 
+  // Short label for a file within this type's group: "pokemon.txt" → "Base",
+  // "pokemon_test_msmod.json" → "test_msmod". Shared by the filter dropdown
+  // and the per-field ownership tags.
+  fileLabel(fname) {
+    const baseName = getFilename(this.currentFileType, this.version).replace(/\.txt$/i, '');
+    return fname.replace(/\.(txt|json)$/i, '').slice(baseName.length + 1) || _t('Base');
+  }
+
+  // Per-field ownership badge for the LBDS multi-file merge — null means "no
+  // badge, render plain". Two views:
+  //  - filtered to one file: fields that file doesn't own show the inherited
+  //    (merged) value grayed out, tagged with the real owner, and an "adopt"
+  //    action that starts overriding the field in the active file.
+  //  - "All files": fields whose effective value comes from a file other than
+  //    the base get tagged so the override is visible without switching tabs.
+  fieldOwnership(entry, key) {
+    if (!this.lbds || key.startsWith('_') || HEADER_DERIVED.has(key)) return null;
+    if ((this.files[this.currentFileType]?.length || 0) <= 1) return null;
+    const owner = entry._fieldFiles?.[key] || entry._file;
+    if (this._fileFilter) {
+      if (owner === this._fileFilter) return null;
+      return {
+        state: 'inherited',
+        tag: this.fileLabel(owner),
+        title: _t('Inherited from {file}', { file: owner }),
+        onAdopt: () => {
+          (entry._fieldFiles ||= {})[key] = this._fileFilter;
+          this.markDirty();
+          this.renderDetail();
+        },
+      };
+    }
+    if (owner === entry._file) return null;
+    return { state: 'overridden', tag: this.fileLabel(owner), title: _t('Overridden by {file}', { file: owner }) };
+  }
+
   // Only worth showing on v21, where a pack can drop `<base>_<suffix>.txt`
   // extras next to the base file; earlier versions only ever have the one.
   buildFileFilter() {
@@ -764,12 +1042,10 @@ export class PbsEditor {
       return;
     }
     this.fileFilterBar.style.display = '';
-    const baseName = getFilename(this.currentFileType, this.version).replace(/\.txt$/i, '');
     const sel = h('select', { className: 'pbs-search', style: { width: '90px', fontSize: '11px' } });
     sel.appendChild(h('option', { value: '', textContent: _t('All files') }));
     for (const f of files) {
-      const label = f.replace(/\.txt$/i, '').slice(baseName.length + 1) || _t('Base');
-      sel.appendChild(h('option', { value: f, textContent: label }));
+      sel.appendChild(h('option', { value: f, textContent: this.fileLabel(f) }));
     }
     sel.value = this._fileFilter || '';
     sel.addEventListener('change', () => this.setFileFilter(sel.value || null));
@@ -784,8 +1060,8 @@ export class PbsEditor {
     if (entries && this.selectedIdx >= 0) {
       const selectedEntry = entries[this.selectedIdx];
       const filtered = this.getPageEntries();
-      if (!filtered.includes(selectedEntry) && filtered.length > 0) {
-        this.selectedIdx = entries.indexOf(filtered[0]);
+      if (!filtered.some(r => (r.__real || r) === selectedEntry) && filtered.length > 0) {
+        this.selectedIdx = entries.indexOf(filtered[0].__real || filtered[0]);
       }
     }
     this.pagination.reset();
@@ -800,17 +1076,32 @@ export class PbsEditor {
   // entries never get merged into the base file (and vice versa).
   async saveFileType(ft) {
     const entries = this.entries[ft];
-    const base = getFilename(ft, this.version);
+    // First known file is the fallback for entries with no remembered source —
+    // NOT always the .txt base: creating it would make the compiler ignore a
+    // same-named .json the file type is actually stored in.
+    const base = this.filesFor(ft)[0];
     if (!entries || !base) return null;
 
     const groups = new Map(this.filesFor(ft).map(f => [f, []]));
     for (const entry of entries) {
-      const fname = groups.has(entry._file) ? entry._file : base;
-      if (!groups.has(fname)) groups.set(fname, []);
-      groups.get(fname).push(entry);
+      if (!entry._fieldFiles) {
+        // Created in the UI — belongs whole to a single file.
+        const fname = groups.has(entry._file) ? entry._file : base;
+        if (!groups.has(fname)) groups.set(fname, []);
+        groups.get(fname).push(entry);
+        continue;
+      }
+      // Merged entry: each field goes back to the file it came from.
+      for (const fname of groups.keys()) {
+        const proj = projectEntryForFile(entry, fname);
+        if (proj) groups.get(fname).push(proj);
+      }
     }
     for (const [fname, group] of groups) {
-      await this.ctx.fs.writeProjectFile('PBS/' + fname, writePbsFile(group, ft, this.version));
+      const out = /\.json$/i.test(fname)
+        ? writeJsonPbs(group, ft)
+        : writePbsFile(group, ft, this.version);
+      await this.ctx.fs.writeProjectFile('PBS/' + fname, out);
     }
 
     this.dirty.delete(ft);
@@ -900,7 +1191,7 @@ export class PbsEditor {
     const entries = this.entries[ft];
     const newEntry = {
       _id: entries.length + 1, _header: name, _excluded: false,
-      _file: getFilename(ft, this.version), Name: name, InternalName: name,
+      _file: this.filesFor(ft)[0], Name: name, InternalName: name,
     };
 
     const allFields = (config.sections || []).flatMap(s => s.fields).concat(config.fields || []);
@@ -966,6 +1257,8 @@ export class PbsEditor {
     if (!entry) return;
 
     const copy = JSON.parse(JSON.stringify(entry));
+    delete copy._fieldFiles;   // a duplicate belongs whole to its target file
+    delete copy._overridden;
     copy._id = entries.length + 1;
     copy._header = copy._header + '_COPY';
     if (copy.Name) copy.Name = copy.Name + ' Copy';

@@ -90,9 +90,11 @@ const RESERVED_BASES = [
 // Essentials compiles every PBS file named `<base>.txt` or `<base>_*.txt`, so
 // packs can add entries in their own file without overwriting the base one
 // (Compiler#get_all_pbs_files_to_compile). Longest base name wins the match.
+// La Base de Sky also compiles `<base>.json` / `<base>_*.json` (`allowJson`).
 // Returns the file type a PBS filename belongs to, or null if none.
-export function matchFileType(filename, version) {
-  const name = filename.replace(/\.txt$/i, '');
+export function matchFileType(filename, version, allowJson = false) {
+  if (/\.json$/i.test(filename) && (!allowJson || version < 21)) return null;
+  const name = filename.replace(/\.(txt|json)$/i, '');
   const bases = Object.entries(FILE_MAP)
     .filter(([, v]) => v[version])
     .map(([ft, v]) => [v[version].replace(/\.txt$/i, ''), ft])
@@ -118,7 +120,7 @@ export function getAvailableFileTypes(version) {
 // CSV helpers (v16/v17)
 // ---------------------------------------------------------------------------
 
-function splitCsvRespectingQuotes(line) {
+export function splitCsvRespectingQuotes(line) {
   return line.split(/,(?=(?:[^"]*"[^"]*")*[^"]*$)/).map(p => p.trim());
 }
 
@@ -128,11 +130,13 @@ function splitCsvRespectingQuotes(line) {
 
 // ---- Pokemon ----------------------------------------------------------------
 
-function parsePokemonV21(raw) {
+function parsePokemonV21(raw, partial) {
   const hasSep = /^#-+/m.test(raw);
   return parseSections(raw).map((s, i) => {
     const d = s.data;
-    if (!d.Name) return null;
+    // `partial`: JSON override files may hold only the fields they change
+    // (the compiler merges them field-by-field into the base section).
+    if (!d.Name && !partial) return null;
     // `Evolution` (singular) is the same data as `Evolutions`; fold it in so it
     // shows up in the editor instead of being written back out twice.
     const evolutions = d.Evolutions || d.Evolution || '';
@@ -144,7 +148,7 @@ function parsePokemonV21(raw) {
     const entry = {
       _id: i + 1, _header: s.header, _excluded: s.excluded, _evoFormat: evoFormat,
       _order: order, _sep: hasSep,
-      Name: d.Name, InternalName: s.header,
+      Name: d.Name || '', InternalName: s.header,
       Types: d.Types || '', BaseStats: d.BaseStats || '',
       HP: '', Atk: '', Def: '', Spe: '', SpAtk: '', SpDef: '',
       GenderRatio: d.GenderRatio || '', GrowthRate: d.GrowthRate || '',
@@ -243,13 +247,13 @@ function parsePokemonFormsV17(raw) {
 
 // ---- Moves ------------------------------------------------------------------
 
-function parseMovesV21(raw) {
+function parseMovesV21(raw, partial) {
   return parseSections(raw).map((s, i) => {
     const d = s.data;
-    if (!d.Name) return null;
+    if (!d.Name && !partial) return null;
     return {
       _id: i + 1, _header: s.header, _excluded: s.excluded,
-      InternalName: s.header, Name: d.Name,
+      InternalName: s.header, Name: d.Name || '',
       FunctionCode: d.FunctionCode || '', Power: d.Power || '',
       Type: d.Type || '', Category: d.Category || '',
       Accuracy: d.Accuracy || '', TotalPP: d.TotalPP || '',
@@ -280,13 +284,13 @@ function parseMovesV16(raw) {
 
 // ---- Abilities ---------------------------------------------------------------
 
-function parseAbilitiesV21(raw) {
+function parseAbilitiesV21(raw, partial) {
   return parseSections(raw).map((s, i) => {
     const d = s.data;
-    if (!d.Name) return null;
+    if (!d.Name && !partial) return null;
     return {
       _id: i + 1, _header: s.header, _excluded: s.excluded,
-      InternalName: s.header, Name: d.Name, Description: d.Description || '',
+      InternalName: s.header, Name: d.Name || '', Description: d.Description || '',
     };
   }).filter(Boolean);
 }
@@ -309,13 +313,13 @@ function parseAbilitiesV16(raw) {
 
 // ---- Items -------------------------------------------------------------------
 
-function parseItemsV21(raw) {
+function parseItemsV21(raw, partial) {
   return parseSections(raw).map((s, i) => {
     const d = s.data;
-    if (!d.Name) return null;
+    if (!d.Name && !partial) return null;
     return {
       _id: i + 1, _header: s.header, _excluded: s.excluded,
-      InternalName: s.header, Name: d.Name,
+      InternalName: s.header, Name: d.Name || '',
       NamePlural: d.NamePlural || '', Pocket: d.Pocket || '',
       Price: d.Price || '', SellPrice: d.SellPrice || '',
       BPPrice: d.BPPrice || '', Description: d.Description || '',
@@ -627,11 +631,11 @@ const PARSERS = {
   tm:             { 16: parseTm, 17: parseTm },
 };
 
-export function parsePbsFile(content, fileType, version) {
+export function parsePbsFile(content, fileType, version, partial = false) {
   const parser = PARSERS[fileType]?.[version];
   if (!parser) return [];
   try {
-    return parser(content);
+    return parser(content, partial);
   } catch (e) {
     console.error(`PBS parse error (${fileType} v${version}):`, e);
     return [];

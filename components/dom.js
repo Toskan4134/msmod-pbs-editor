@@ -3,6 +3,13 @@ import { TYPE_COLORS } from '../file-types.js';
 export let _t = s => s;
 export function setI18n(tFn) { _t = tFn; }
 
+// Accent-insensitive search key: "capsula" must match "Cápsula". NFD splits
+// accented chars into base+combining-mark, then the marks get stripped —
+// standard JS idiom, no library needed.
+export function normalizeSearch(s) {
+  return String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+}
+
 // ---- Type icon sprite (loaded from game project) ----
 let _typeIconUrl = null;
 let _typeIconW = 0;
@@ -179,8 +186,8 @@ export function createRefInput(value, suggestions, onChange, placeholder) {
     const list = getList();
     if (!list.length) { filtered = []; return; }
     if (!q) { filtered = list.filter(s => typeof s === 'string').slice(0, 20); return; }
-    const lower = q.toLowerCase();
-    filtered = list.filter(s => typeof s === 'string' && s.toLowerCase().includes(lower)).slice(0, 20);
+    const needle = normalizeSearch(q);
+    filtered = list.filter(s => typeof s === 'string' && normalizeSearch(s).includes(needle)).slice(0, 20);
   }
 
   function renderDropdown() {

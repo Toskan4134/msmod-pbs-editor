@@ -1,7 +1,7 @@
 {
     "id": "com.toskan4134.pbs-editor",
     "name": "PBS Editor",
-    "version": "1.5.0",
+    "version": "1.6.0",
     "apiVersion": "1.0.0",
     "main": "index.js",
     "authors": [{ "name": "Toskan4134", "url": "https://x.com/Toskan4134" }, { "name": "DPertierra", "url": "https://github.com/dpertierra" }, { "name": "Miolthor" }],

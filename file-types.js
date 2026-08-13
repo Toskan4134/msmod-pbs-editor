@@ -45,6 +45,49 @@ export function getPrimaryGraphic(fileType, entry, version) {
   return null;
 }
 
+// Front + back (+ shiny) paths for the Pokemon preview panel. Derived from
+// `getPrimaryGraphic`'s front path (single source of truth for the naming
+// formula) instead of recomputing it — the shiny/back folders differ only by
+// name, not by species/form logic. `null` fields mean that variant has no
+// separate sprite in this Essentials version and the preview just omits it.
+export function getPokemonSpriteVariants(fileType, entry, version) {
+  const front = getPrimaryGraphic(fileType, entry, version);
+  if (!front) return null;
+  if (version >= 21) {
+    // La Base de Sky convention: shiny lives in a sibling folder with a space
+    // in the name ("Front shiny/"), not a "FrontShiny/" concatenation.
+    const back = front.replace('/Front/', '/Back/');
+    return { front, back, frontShiny: front.replace('/Front/', '/Front shiny/'), backShiny: back.replace('/Back/', '/Back shiny/') };
+  }
+  if (version >= 17) {
+    // v17 renders shiny via a runtime color tone, not a separate sprite file.
+    return { front, back: front.replace('/Front/', '/Back/'), frontShiny: null, backShiny: null };
+  }
+  // v16 battlers are a single front-only file — no back, no shiny sprite.
+  return { front, back: null, frontShiny: null, backShiny: null };
+}
+
+// Party/PC icon (list rows, table icon column). Separate folder from the
+// battler sprite, always a horizontal strip — `frames` tells the caller how
+// many to crop the first one from.
+export function getIconGraphic(fileType, entry, version) {
+  if (fileType === 'pokemon' || fileType === 'pokemon_forms') {
+    const id = padId(entry);
+    const name = entry.InternalName || '';
+    const formIndex = fileType === 'pokemon_forms' ? (parseInt(entry.FormIndex) || 0) : 0;
+    const formSuffix = formIndex > 0 ? `_${formIndex}` : '';
+    const formName = `${name}${formSuffix}`;
+    const formId = formIndex > 0 ? `${id}_${formIndex}` : id;
+    const path = version >= 21 ? `Graphics/Pokemon/Icons/${formName}.png` : `Graphics/Icons/icon${formId}.png`;
+    return { path, frames: 2 };
+  }
+  if (fileType === 'items' || fileType === 'trainers' || fileType === 'trainer_types') {
+    const path = getPrimaryGraphic(fileType, entry, version);
+    return path ? { path, frames: 1 } : null;
+  }
+  return null;
+}
+
 // ---- SVG icon helper (Lucide-style) ----
 function _svg(d, sz = 16) {
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${sz}" height="${sz}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle">${d}</svg>`;
@@ -66,7 +109,7 @@ const _ICONS = {
 
 export const FILE_TYPES = {
   pokemon: {
-    label: 'Pokemon', icon: _ICONS.pokemon,
+    label: 'Pokemon', icon: _ICONS.pokemon, rowIcon: true,
     displayField: 'Name', headerField: 'InternalName',
     sections: [
       { label: 'Basic', fields: [
@@ -108,15 +151,15 @@ export const FILE_TYPES = {
       ]},
     ],
     columns: [
-      { key: '_id', label: '#', width: 35, numeric: true },
-      { key: 'Name', label: 'Name', width: 110 },
-      { key: 'InternalName', label: 'Internal', width: 95 },
-      { key: 'Types', label: 'Types', width: 90 },
-      { key: 'BaseStats', label: 'Stats', width: 120 },
+      { key: '_id', label: '#', width: 40, numeric: true },
+      { key: 'Name', label: 'Name', width: 85 },
+      { key: 'InternalName', label: 'Internal', width: 65 },
+      { key: 'Types', label: 'Types', width: 60, typeList: true },
+      { key: 'BaseStats', label: 'Stats', width: 155, statBar: true },
     ],
   },
   pokemon_forms: {
-    label: 'Forms', icon: _ICONS.forms,
+    label: 'Forms', icon: _ICONS.forms, rowIcon: true,
     displayField: 'FormName', headerField: 'InternalName',
     sections: [
       { label: 'Basic', fields: [
@@ -146,10 +189,10 @@ export const FILE_TYPES = {
       ]},
     ],
     columns: [
-      { key: 'InternalName', label: 'Pokemon', width: 100 },
-      { key: 'FormIndex', label: 'Form', width: 40, numeric: true },
-      { key: 'FormName', label: 'Name', width: 100 },
-      { key: 'Types', label: 'Types', width: 80 },
+      { key: 'InternalName', label: 'Pokemon', width: 70 },
+      { key: 'FormIndex', label: 'Form', width: 30, numeric: true },
+      { key: 'FormName', label: 'Name', width: 85 },
+      { key: 'Types', label: 'Types', width: 60, typeList: true },
     ],
   },
   moves: {
@@ -171,13 +214,13 @@ export const FILE_TYPES = {
       { key: 'Description', label: 'Description', type: 'textarea', fullWidth: true },
     ]}],
     columns: [
-      { key: '_id', label: '#', width: 35, numeric: true },
-      { key: 'Name', label: 'Name', width: 110 },
-      { key: 'Type', label: 'Type', width: 60 },
-      { key: 'Category', label: 'Cat', width: 55 },
-      { key: 'Power', label: 'Pow', width: 40, numeric: true },
-      { key: 'Accuracy', label: 'Acc', width: 40, numeric: true },
-      { key: 'TotalPP', label: 'PP', width: 35, numeric: true },
+      { key: '_id', label: '#', width: 40, numeric: true },
+      { key: 'Name', label: 'Name', width: 85 },
+      { key: 'Type', label: 'Type', width: 46, typeList: true },
+      { key: 'Category', label: 'Cat', width: 46 },
+      { key: 'Power', label: 'Pow', width: 34, numeric: true, dashIfEmpty: true },
+      { key: 'Accuracy', label: 'Acc', width: 34, numeric: true, dashIfEmpty: true },
+      { key: 'TotalPP', label: 'PP', width: 30, numeric: true },
     ],
   },
   abilities: {
@@ -189,13 +232,13 @@ export const FILE_TYPES = {
       { key: 'Description', label: 'Description', type: 'textarea', fullWidth: true },
     ]}],
     columns: [
-      { key: '_id', label: '#', width: 35, numeric: true },
-      { key: 'Name', label: 'Name', width: 130 },
-      { key: 'InternalName', label: 'Internal', width: 110 },
+      { key: '_id', label: '#', width: 40, numeric: true },
+      { key: 'Name', label: 'Name', width: 110 },
+      { key: 'InternalName', label: 'Internal', width: 85 },
     ],
   },
   items: {
-    label: 'Items', icon: _ICONS.items,
+    label: 'Items', icon: _ICONS.items, rowIcon: true,
     displayField: 'Name', headerField: 'InternalName',
     sections: [{ label: 'All Fields', fields: [
       { key: 'Name', label: 'Name', type: 'text' },
@@ -214,10 +257,10 @@ export const FILE_TYPES = {
       { key: 'Move', label: 'Move', type: 'text', ref: 'moves' },
     ]}],
     columns: [
-      { key: '_id', label: '#', width: 35, numeric: true },
-      { key: 'Name', label: 'Name', width: 130 },
-      { key: 'Pocket', label: 'Pocket', width: 50, numeric: true },
-      { key: 'Price', label: 'Price', width: 50, numeric: true },
+      { key: '_id', label: '#', width: 40, numeric: true },
+      { key: 'Name', label: 'Name', width: 105 },
+      { key: 'Pocket', label: 'Pocket', width: 42, numeric: true },
+      { key: 'Price', label: 'Price', width: 42, numeric: true },
     ],
   },
   types: {
@@ -234,10 +277,12 @@ export const FILE_TYPES = {
       { key: 'Immunities', label: 'Immunities', type: 'list', ref: 'types' },
     ]}],
     columns: [
-      { key: 'Name', label: 'Name', width: 80 },
-      { key: 'InternalName', label: 'Internal', width: 80 },
-      { key: 'Weaknesses', label: 'Weak', width: 120 },
-      { key: 'Resistances', label: 'Resist', width: 120 },
+      { key: 'Name', label: 'Name', width: 65 },
+      { key: 'InternalName', label: 'Internal', width: 65 },
+      // The only content-heavy columns in this file (a type can resist up to
+      // ~10 others) — wide by design, they scroll horizontally past that.
+      { key: 'Weaknesses', label: 'Weak', width: 240, typeList: true },
+      { key: 'Resistances', label: 'Resist', width: 240, typeList: true },
     ],
   },
   encounters: {
@@ -262,9 +307,9 @@ export const FILE_TYPES = {
       { key: 'Items', label: 'Items', type: 'list', ref: 'items' },
     ]}],
     columns: [
-      { key: 'TrainerType', label: 'Type', width: 100 },
-      { key: 'Name', label: 'Name', width: 100 },
-      { key: 'Version', label: 'Ver', width: 40 },
+      { key: 'TrainerType', label: 'Type', width: 90 },
+      { key: 'Name', label: 'Name', width: 90 },
+      { key: 'Version', label: 'Ver', width: 34 },
     ],
   },
   trainer_types: {
@@ -281,9 +326,9 @@ export const FILE_TYPES = {
       { key: 'IntroBGM', label: 'Intro BGM', type: 'bgm' },
     ]}],
     columns: [
-      { key: 'Name', label: 'Name', width: 120 },
-      { key: 'InternalName', label: 'Internal', width: 100 },
-      { key: 'BaseMoney', label: 'Base $', width: 60, numeric: true },
+      { key: 'Name', label: 'Name', width: 110 },
+      { key: 'InternalName', label: 'Internal', width: 85 },
+      { key: 'BaseMoney', label: 'Base $', width: 55, numeric: true },
     ],
   },
   town_map: {
