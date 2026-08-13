@@ -48,8 +48,10 @@ export default {
   "Search...": "Buscar...",
 
   // components.js — pagination
+  "« First": "« Primero",
   "← Prev": "← Anterior",
   "Next →": "Siguiente →",
+  "Last »": "Último »",
   "Page {current} of {total}": "Página {current} de {total}",
 
   // components.js — preview

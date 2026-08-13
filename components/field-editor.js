@@ -359,7 +359,7 @@ function createTripletsEditor(trips, labels, onChange, suggestions, onNavigate, 
 }
 
 // ---- Stats editor ----
-function statColor(val) {
+export function statColor(val) {
   if (val <= 30) return '#ff6b6b';
   if (val <= 60) return '#fbbf24';
   if (val <= 90) return '#4ade80';

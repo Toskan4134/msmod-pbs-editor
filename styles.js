@@ -102,6 +102,7 @@ export const CSS = `
   background: var(--accent-muted);
   color: var(--text-primary);
   font-weight: 600;
+  box-shadow: inset 3px 0 0 var(--accent);
 }
 .pbs-sidebar-label { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pbs-sidebar-badge {
@@ -136,6 +137,12 @@ export const CSS = `
 .pbs-table {
   width: 100%;
   border-collapse: collapse;
+  /* Fixed layout: a column's width is exactly what its <th> declares, never
+     stretched by a wide cell (e.g. Steel's 10-badge Weaknesses list). Without
+     this, table-layout:auto lets one loaded row's intrinsic content width
+     hijack the whole column and starve its neighbors — that's what looked
+     like "badges in the wrong column" and "doubled row height" before. */
+  table-layout: fixed;
 }
 .pbs-table th {
   position: sticky;
@@ -153,10 +160,14 @@ export const CSS = `
   cursor: pointer;
   user-select: none;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .pbs-table th:hover { color: var(--text-primary); }
 .pbs-table th .pbs-sort-arrow { margin-left: 3px; font-size: 9px; }
 .pbs-table td {
+  height: 44px;
+  box-sizing: border-box;
   padding: 4px 8px;
   border-bottom: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
   color: var(--text-secondary);
@@ -164,12 +175,66 @@ export const CSS = `
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  vertical-align: middle;
 }
 .pbs-table tr:hover td { background: var(--bg-hover); }
 .pbs-table tr.selected td {
   background: var(--accent-muted);
   color: var(--text-primary);
 }
+.pbs-table tr.selected td:first-child {
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+/* ---- Row icon column (Pokemon/Items/Trainers) ---- */
+.pbs-table td.pbs-icon-cell, .pbs-table th.pbs-icon-cell { width: 44px; padding: 2px 6px; text-align: center; }
+.pbs-icon-img, .pbs-icon-cell canvas {
+  width: 34px;
+  height: 34px;
+  object-fit: contain;
+  image-rendering: pixelated;
+  display: block;
+  margin: 0 auto;
+}
+
+/* ---- Type badges (table cell) ---- */
+/* The <td> itself stays a plain table-cell (default display) — border-bottom
+   and column width both depend on that. The flex row lives on the inner div;
+   display:flex set directly on a <td> drops it out of table layout in this
+   webview (column bleeds into its neighbor, border disappears). */
+.pbs-table td.pbs-type-cell { padding: 0 6px; }
+.pbs-type-cell-inner {
+  display: flex;
+  gap: 3px;
+  align-items: center;
+  flex-wrap: nowrap;
+  height: 100%;
+  /* More badges than fit (e.g. Steel's 10 resistances) scroll horizontally
+     inside the cell instead of wrapping into a second line (blows up row
+     height) or overflowing into the next column. */
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+.pbs-type-cell-inner::-webkit-scrollbar { display: none; }
+.pbs-type-pill {
+  display: inline-block;
+  flex-shrink: 0;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 9px;
+  font-weight: 700;
+  border: 1px solid;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+
+/* ---- Mini stat bar (table cell) ---- */
+.pbs-table td.pbs-statbar-cell { padding: 0 6px; }
+.pbs-statbar-cell-inner { display: flex; align-items: center; gap: 10px; height: 100%; }
+.pbs-mini-statbar { display: flex; align-items: flex-end; gap: 3px; height: 34px; flex-shrink: 0; }
+.pbs-mini-statbar-seg { width: 8px; min-height: 2px; border-radius: 1px; }
+.pbs-mini-statbar-total { font-size: 13px; font-weight: 700; color: var(--text-primary); font-variant-numeric: tabular-nums; }
 .pbs-table tr.excluded td {
   opacity: 0.4;
   text-decoration: line-through;
@@ -209,14 +274,29 @@ export const CSS = `
 
 /* ---- Right: preview + detail ---- */
 .pbs-right {
-  width: 360px;
-  min-width: 280px;
+  width: 440px;
+  min-width: 320px;
   display: flex;
   flex-direction: column;
   overflow: hidden;
   flex-shrink: 0;
   background: var(--bg-secondary);
 }
+
+/* ---- Drag handle between table and detail pane (user-resizable width) ---- */
+.pbs-resizer {
+  width: 5px;
+  flex-shrink: 0;
+  cursor: col-resize;
+  background: var(--border);
+  position: relative;
+}
+.pbs-resizer::after {
+  content: '';
+  position: absolute;
+  inset: 0 -3px;
+}
+.pbs-resizer:hover, .pbs-resizer.dragging { background: var(--accent); }
 
 /* ---- Preview pane ---- */
 .pbs-preview {
@@ -265,6 +345,38 @@ export const CSS = `
   font-size: 10px;
   color: var(--text-tertiary);
 }
+
+/* ---- Pokemon front + back preview ---- */
+/* Back bottom-anchors here (PictureOrigin::BOTTOM in-game); front overrides
+   to align-self:center below (PictureOrigin::CENTER — it floats, no
+   per-species correction, unlike back's SpeciesMetrics nudge). */
+.pbs-preview-pokemon {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 10px;
+}
+.pbs-preview-pokemon-slot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.pbs-preview-pokemon-front { align-self: center; }
+.pbs-preview-shiny-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  padding: 3px 9px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.pbs-preview-shiny-btn:hover { border-color: var(--accent); color: var(--text-primary); }
+.pbs-preview-shiny-btn.active { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
 
 /* ---- Detail panel ---- */
 .pbs-detail {
@@ -363,7 +475,7 @@ export const CSS = `
 .pbs-field input:focus,
 .pbs-field select:focus,
 .pbs-field textarea:focus { border-color: var(--accent); }
-.pbs-field textarea { min-height: 36px; resize: vertical; }
+.pbs-field textarea { min-height: 140px; resize: vertical; }
 .pbs-field input[type="number"] { width: 70px; }
 .pbs-field select {
   -webkit-appearance: none;
@@ -401,6 +513,7 @@ export const CSS = `
 .pbs-section-toggle:hover { color: var(--text-primary); }
 .pbs-section-arrow { font-size: 9px; transition: transform 0.15s; }
 .pbs-section-arrow.open { transform: rotate(90deg); }
+.pbs-section-arrow.open + span { color: var(--accent); }
 .pbs-section-body { grid-column: 1 / -1; padding-bottom: 8px; }
 
 /* ---- List editor ---- */

@@ -14,10 +14,11 @@ import {
   createTable,
   createTrainerPokemonEditor,
   h,
+  normalizeSearch,
   searchBox,
   showContextMenu,
 } from './components.js';
-import { getFileTypeConfig, getPrimaryGraphic } from './file-types.js';
+import { getFileTypeConfig, getIconGraphic, getPokemonSpriteVariants, getPrimaryGraphic } from './file-types.js';
 import { getAvailableFileTypes, getFilename, matchFileType, parsePbsFile } from './parsers.js';
 import { parseJsonPbs, writeJsonPbs } from './json.js';
 import { CSS } from './styles.js';
@@ -33,6 +34,10 @@ const ICON_TRASH = _tbSvg('<polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 
 const ICON_DISCARD = _tbSvg('<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/>');
 
 const PAGE_SIZE = 50;
+
+// File types that never have an associated graphic — the preview pane is
+// hidden entirely for them instead of showing a permanent "No graphic" box.
+const NO_GRAPHIC_TYPES = new Set(['moves', 'abilities', 'encounters', 'tm']);
 
 // Materialized from the section header by the parsers, not real fields —
 // they must never take part in merge provenance or be written to JSON.
@@ -159,6 +164,7 @@ export class PbsEditor {
         const typeCount = this.entries.types?.length || 19;
         const iconH = Math.round(img.naturalHeight / typeCount);
         configureTypeIcons(url, img.naturalWidth, iconH, img.naturalHeight);
+        this._refreshTypeVisuals();
       };
       img.src = url;
     } catch { /* sprite not found — colored fallback used */ }
@@ -216,33 +222,47 @@ export class PbsEditor {
     return null;
   }
 
-  async loadMetrics() {    if (this._metricsCache) return this._metricsCache;
+  // Per-species (or per-form) SpeciesMetrics section: { speed, backOffset:
+  // [x,y], frontOffset: [x,y], frontAltitude }. Keyed by `NAME` or
+  // `NAME_FormIndex` — same convention as getPrimaryGraphic's form suffix.
+  async loadMetrics() {
+    if (this._metricsCache) return this._metricsCache;
     this._metricsCache = {};
     try {
       const fname = this.version >= 21 ? 'pokemon_metrics.txt' : '';
       if (!fname) return this._metricsCache;
       const raw = await this.readFile('PBS/' + fname);
-      const lines = raw.split(/\r?\n/);
-      for (const line of lines) {
-        const t = line.trim();
-        const m = t.match(/^\[(.+?)\](!exclude)?$/);
-        if (!m) continue;
-        const name = m[1];
-        // Scan following lines for Speed
-        const idx = lines.indexOf(line);
-        let speed = null;
-        for (let j = idx + 1; j < lines.length; j++) {
-          const lt = lines[j].trim();
-          if (lt.startsWith('[')) break;
-          if (lt.startsWith('Speed')) {
-            const eq = lt.indexOf('=');
-            if (eq >= 0) speed = parseInt(lt.slice(eq + 1).trim());
-          }
+      let current = null;
+      for (const rawLine of raw.split(/\r?\n/)) {
+        const t = rawLine.trim();
+        const header = t.match(/^\[(.+?)\](!exclude)?$/);
+        if (header) {
+          // `[SPECIES]` or `[SPECIES,FormIndex]`
+          const [name, formStr] = header[1].split(',').map(s => s.trim());
+          const form = parseInt(formStr) || 0;
+          current = (this._metricsCache[form > 0 ? `${name}_${form}` : name] ||= {});
+          continue;
         }
-        if (speed != null) this._metricsCache[name] = speed;
+        if (!current) continue;
+        const eq = t.indexOf('=');
+        if (eq < 0) continue;
+        const field = t.slice(0, eq).trim();
+        const val = t.slice(eq + 1).trim();
+        if (field === 'Speed') current.speed = parseInt(val);
+        else if (field === 'BackSprite') current.backOffset = val.split(',').map(n => parseInt(n.trim()) || 0);
+        else if (field === 'FrontSprite') current.frontOffset = val.split(',').map(n => parseInt(n.trim()) || 0);
+        else if (field === 'FrontSpriteAltitude') current.frontAltitude = parseInt(val) || 0;
       }
     } catch { /* metrics file may not exist */ }
     return this._metricsCache;
+  }
+
+  // A form with no metrics entry of its own inherits the base species' one.
+  metricsFor(metrics, entry, fileType) {
+    const name = entry.InternalName || '';
+    const form = fileType === 'pokemon_forms' ? (parseInt(entry.FormIndex) || 0) : 0;
+    if (form > 0) return metrics[`${name}_${form}`] || metrics[name] || {};
+    return metrics[name] || {};
   }
 
   spriteSpeedToFps(speed) {
@@ -254,11 +274,20 @@ export class PbsEditor {
 
   async getSpriteFps(entry, fileType) {
     if (fileType !== 'pokemon' && fileType !== 'pokemon_forms') return undefined;
-    const name = entry.InternalName || '';
     const metrics = await this.loadMetrics();
-    const speed = metrics[name];
+    const speed = this.metricsFor(metrics, entry, fileType).speed;
     const fps = this.spriteSpeedToFps(speed);
     return fps !== undefined ? fps : 16;
+  }
+
+  // Raw (un-doubled) Y from SpeciesMetrics#back_sprite — same field the
+  // Pokédex forms page nudges the back sprite by. No SpeciesMetrics pre-v21,
+  // so back just bottom-aligns as-is there.
+  async getBackOffsetY(entry, fileType) {
+    if (this.version < 21) return 0;
+    const metrics = await this.loadMetrics();
+    const m = this.metricsFor(metrics, entry, fileType);
+    return m.backOffset?.[1] || 0;
   }
 
   build() {
@@ -330,6 +359,11 @@ export class PbsEditor {
     this.centerCol.appendChild(this.pagination.el);
     this.mainLayout.appendChild(this.centerCol);
 
+    // Drag handle: lets the user widen the detail pane themselves (some file
+    // types like Encounters only need 2 table columns and could use the room).
+    this.resizer = h('div', { className: 'pbs-resizer' });
+    this.mainLayout.appendChild(this.resizer);
+
     // Right: preview + detail
     this.rightCol = h('div', { className: 'pbs-right' });
     this.previewPanel = createPreviewPanel((p) => this.loadImageBlob(p));
@@ -339,6 +373,32 @@ export class PbsEditor {
     this.mainLayout.appendChild(this.rightCol);
 
     this.root.appendChild(this.mainLayout);
+    this.initResizer();
+  }
+
+  // Drag pbs-resizer to resize the detail pane. Session-only (not persisted) —
+  // the default width already fits most file types; this just covers the ones
+  // that don't (Encounters' 2-column table, long Forms names, etc).
+  initResizer() {
+    let startX = 0, startWidth = 0;
+    const onMove = (e) => {
+      const delta = startX - e.clientX; // dragging left grows the right pane
+      const min = 320, max = Math.round(this.mainLayout.clientWidth * 0.7);
+      this.rightCol.style.width = Math.max(min, Math.min(max, startWidth + delta)) + 'px';
+    };
+    const onUp = () => {
+      this.resizer.classList.remove('dragging');
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    };
+    this.resizer.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      startX = e.clientX;
+      startWidth = this.rightCol.getBoundingClientRect().width;
+      this.resizer.classList.add('dragging');
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    });
   }
 
   buildStatusBar() {
@@ -553,8 +613,30 @@ export class PbsEditor {
     if (!this.entries[ft]) {
       this.entries[ft] = await this.loadEntries(ft);
       this.originalEntries[ft] = JSON.parse(JSON.stringify(this.entries[ft]));
+      // Types loads in the background for every version (sidebar badge count);
+      // once it lands, any table already showing type badges needs a repaint
+      // to pick up real icon positions instead of the color-swatch fallback.
+      if (ft === 'types') this._refreshTypeVisuals();
     }
     badgeEl.textContent = String(this.entries[ft].length);
+  }
+
+  // Name (uppercase) -> IconPosition for the type-icon sprite. Null until
+  // `entries.types` has loaded (background load kicked off from the sidebar).
+  typeIconLookup() {
+    const list = this.entries.types;
+    if (!list) return null;
+    const map = {};
+    for (const t of list) {
+      const name = (t.InternalName || t.Name || '').toUpperCase();
+      const pos = parseInt(this.version >= 21 ? t.IconPosition : t._id);
+      if (name && !isNaN(pos)) map[name] = pos;
+    }
+    return map;
+  }
+
+  _refreshTypeVisuals() {
+    if (this.currentFileType) this.renderTable();
   }
 
   // ---- File selection ----
@@ -703,10 +785,10 @@ export class PbsEditor {
       entries = entries.filter(e => projectEntryForFile(e, this._fileFilter) !== null);
     }
     if (this.searchQuery) {
-      const q = this.searchQuery.toLowerCase();
+      const q = normalizeSearch(this.searchQuery);
       const config = getFileTypeConfig(ft);
       entries = entries.filter(r =>
-        config.columns.some(c => String(r[c.key] ?? '').toLowerCase().includes(q))
+        config.columns.some(c => normalizeSearch(r[c.key] ?? '').includes(q))
       );
     }
     return entries;
@@ -751,6 +833,10 @@ export class PbsEditor {
 
     this.table = createTable(config.columns, pageRows, {
       sortCol, sortDir,
+      rowIcon: config.rowIcon ? (row) => getIconGraphic(ft, row, this.version) : null,
+      gameRoot: this.gameRoot,
+      loadIcon: (p) => this.loadImageBlob(p),
+      typeIconLookup: this.typeIconLookup(),
       cellClass: (row, col) => {
         const o = this.fieldOwnership(row, col.key);
         return o ? `pbs-cell-${o.state}` : '';
@@ -792,6 +878,8 @@ export class PbsEditor {
   async updatePreview() {
     const ft = this.currentFileType;
     const config = getFileTypeConfig(ft);
+    this.previewPanel.el.style.display = NO_GRAPHIC_TYPES.has(ft) ? 'none' : '';
+    if (NO_GRAPHIC_TYPES.has(ft)) return;
     if (!config || this.selectedIdx < 0 || !this.entries[ft]) {
       this.previewPanel.clear();
       return;
@@ -811,6 +899,15 @@ export class PbsEditor {
       const displayVal = entry[config.displayField] || entry.Name || entry._id;
       const resolved = await this.resolveTownMapPath(entry.Filename);
       this.previewPanel.show(this.gameRoot, resolved, String(displayVal), 0, { map: true });
+      return;
+    }
+
+    if (ft === 'pokemon' || ft === 'pokemon_forms') {
+      const displayVal = entry[config.displayField] || entry[config.headerField] || '';
+      const variants = getPokemonSpriteVariants(ft, entry, this.version);
+      const fps = await this.getSpriteFps(entry, ft);
+      const backOffsetY = await this.getBackOffsetY(entry, ft);
+      this.previewPanel.showPokemon(this.gameRoot, variants, displayVal, fps, backOffsetY);
       return;
     }
 
