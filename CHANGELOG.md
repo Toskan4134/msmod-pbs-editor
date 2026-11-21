@@ -1,26 +1,26 @@
 # Changelog
 
-## [Unreleased]
+## [1.6.1] - 2026-11-21
 
-- Refresh the open PBS category when files change on disk and offer Cancel, Discard, or Overwrite when saving over external changes.
-- Update type badges immediately when a type field changes.
+### Added
 
-- Animated Pokémon table icons and trainer sprites. Linked the Forms species field to Pokémon entries.
+- Batch selection across pages, direct entry actions, and keyboard shortcuts.
+- Adjustable page size and column widths, scrolling table labels, and animated Pokémon icons and trainer sprites.
+- Project-specific move category graphics, individual flag editors for v21 and LBDS, and Pokémon references in Forms.
+- Automatic refresh for external PBS edits, with Cancel, Discard, and Overwrite choices when saving a conflict.
 
-- Added multi-row selection across pages and batch duplicate, delete, and exclude/include.
-- Added adjustable page sizes, trainer portraits, and columns that fit the available width.
+### Changed
 
-- Fit columns to all records and distribute extra table width evenly before manual resizing.
-- Added direct entry actions and keyboard shortcuts, game-provided move category graphics, and individual flag editors for v21 and LBDS.
+- Matched Maker Studio's controls and theme, including a compact layout for narrower dialogs.
+- Improved keyboard navigation, reference autocomplete, field controls, and sprite previews.
+- Numbered records per file or across all files in the combined view, and sorted Pokémon stats by base stat total.
 
-- Added resizable table columns, scrolling labels, move category icons and compact switches.
-- Fixed sprite preview alignment, numbering across additional PBS files and first-step history navigation.
+### Fixed
 
-- Updated the PBS Editor to match Maker Studio controls and themes, with a compact view for narrow dialogs.
-- Improved keyboard navigation, entry actions, and reference autocomplete.
-- Added a save, discard, or cancel prompt when switching PBS types or Essentials versions. Read errors block saving the affected file type.
+- Preserved pending edits when changing PBS type or Essentials version and blocked writes when source files cannot be read.
+- Fixed first-step history navigation and updated type icons as the field changes.
 
-## [1.6.1]
+### License
 
 PBS Editor now uses the Maker Studio Mod Free Distribution License. The mod
 and corresponding source are available free of charge. Earlier releases retain
