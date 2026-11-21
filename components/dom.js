@@ -74,10 +74,10 @@ export function makeTypeIndicator(typeName, iconPos) {
 
 export function updateTypeIndicator(el, typeName, iconPos) {
   if (_typeIconUrl && iconPos != null) {
-    Object.assign(el.style, typeIconStyle(iconPos));
     el.style.background = '';
     el.style.border = '';
     el.style.borderRadius = '';
+    Object.assign(el.style, typeIconStyle(iconPos));
   } else {
     const color = TYPE_COLORS[(typeName || '').toUpperCase()] || null;
     el.style.backgroundImage = '';
@@ -121,13 +121,44 @@ export function button(label, onClick, variant = '') {
     : h('button', { className: cls, onClick, textContent: label });
 }
 
+// The mod renders plain DOM. Use the host ScrollingText markup and animation.
+export function scrollingText(value) {
+  const inner = h('span', { textContent: value });
+  const box = h('span', { className: 'ms-scroll-text ms-scroll-hover pbs-scrolling-text', title: value }, inner);
+  const measure = () => {
+    const overflow = inner.scrollWidth - box.clientWidth;
+    box.classList.toggle('scrolling', overflow > 2);
+    inner.style.setProperty('--ms-scroll-dx', `${-overflow}px`);
+    inner.style.setProperty('--ms-scroll-ms', `${Math.max(4000, overflow * 40)}ms`);
+  };
+  box.addEventListener('pointerenter', measure);
+  return box;
+}
+
+export function iconSwitch(checked, label, onChange) {
+  const symbol = path => `<svg width="12" height="12" viewBox="3 3 18 18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${path}</svg>`;
+  const tick = symbol('<polyline points="20 6 9 17 4 12"/>');
+  const cross = symbol('<path d="m18 6-12 12m0-12 12 12"/>');
+  const control = h('button', { type: 'button', className: 'ms-bare icon-switch pbs-switch', role: 'switch', 'aria-checked': String(checked), 'aria-label': label },
+    h('span', { className: 'icon-switch-track', 'aria-hidden': 'true' },
+      h('span', { className: 'icon-switch-symbol icon-switch-off', innerHTML: cross }),
+      h('span', { className: 'icon-switch-symbol icon-switch-on', innerHTML: tick }),
+      h('span', { className: 'icon-switch-thumb' })));
+  control.addEventListener('click', () => {
+    checked = !checked;
+    control.setAttribute('aria-checked', String(checked));
+    onChange(checked);
+  });
+  return control;
+}
+
 export function badge(text) {
   return h('span', { className: 'pbs-sidebar-badge', textContent: String(text) });
 }
 
 export function searchBox(placeholder, onInput) {
   let timer;
-  const input = h('input', { className: 'pbs-search', type: 'text', placeholder: placeholder || _t('Search...'), onInput: () => { clearTimeout(timer); timer = setTimeout(() => onInput(input.value), 150); } });
+  const input = h('input', { className: 'pbs-search', type: 'search', 'aria-label': placeholder || _t('Search...'), placeholder: placeholder || _t('Search...'), onInput: () => { clearTimeout(timer); timer = setTimeout(() => onInput(input.value), 150); } });
   return input;
 }
 
@@ -135,47 +166,75 @@ export function searchBox(placeholder, onInput) {
 const GO_TO_SVG = "<svg xmlns='http://www.w3.org/2000/svg' x='0px' y='0px' viewBox='0 0 24 24' width='12' height='12' fill='currentColor'><path d='M 5 3 C 3.9069372 3 3 3.9069372 3 5 L 3 19 C 3 20.093063 3.9069372 21 5 21 L 19 21 C 20.093063 21 21 20.093063 21 19 L 21 12 L 19 12 L 19 19 L 5 19 L 5 5 L 12 5 L 12 3 L 5 3 z M 14 3 L 14 5 L 17.585938 5 L 8.2929688 14.292969 L 9.7070312 15.707031 L 19 6.4140625 L 19 10 L 21 10 L 21 3 L 14 3 z'></path></svg>";
 export function goToBtn(refKey, getValue, onNavigate) {
   if (!onNavigate || !refKey) return null;
-  return h('button', { className: 'pbs-goto-btn', style: { background: 'transparent', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: '12px', padding: '0 2px', lineHeight: '1', flexShrink: '0', alignSelf: 'center', display: 'inline-flex', alignItems: 'center' }, innerHTML: GO_TO_SVG, onClick: (e) => { e.stopPropagation(); const v = getValue(); if (v) onNavigate(refKey, v); } });
+  return h('button', { className: 'pbs-goto-btn', 'aria-label': _t('Go to reference'), title: _t('Go to reference'), style: { background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '12px', padding: '0 2px', lineHeight: '1', flexShrink: '0', alignSelf: 'center', display: 'inline-flex', alignItems: 'center' }, innerHTML: GO_TO_SVG, onClick: (e) => { e.stopPropagation(); const v = getValue(); if (v) onNavigate(refKey, v); } });
 }
 
 // ---- Context menu ----
 let activeCtxMenu = null;
-export function showContextMenu(x, y, items, host) {
+export function showContextMenu(x, y, items, host, trigger) {
   closeContextMenu();
-  const menu = h('div', { className: 'pbs-ctx-menu', style: { left: x + 'px', top: y + 'px' } });
+  const menu = h('div', { className: 'pbs-ctx-menu', role: 'menu', 'aria-label': _t('Actions') });
   for (const item of items) {
-    if (item.separator) { menu.appendChild(h('div', { className: 'pbs-ctx-sep' })); continue; }
-    menu.appendChild(h('button', { className: `pbs-ctx-item ${item.danger ? 'danger' : ''}`, textContent: item.label, onClick: (e) => { e.stopPropagation(); closeContextMenu(); item.action?.(); } }));
+    if (item.separator) { menu.appendChild(h('div', { className: 'pbs-ctx-sep', role: 'separator' })); continue; }
+    menu.appendChild(h('button', { className: `pbs-ctx-item ${item.danger ? 'danger' : ''}`, role: 'menuitem', tabIndex: -1, textContent: item.label, onClick: () => { closeContextMenu(); trigger?.focus(); item.action?.(); } }));
   }
   host.appendChild(menu);
   activeCtxMenu = menu;
-  const close = (e) => { if (!menu.contains(e.target)) closeContextMenu(); };
-  document.addEventListener('mousedown', close, true);
-  menu._cleanup = () => document.removeEventListener('mousedown', close, true);
+  menu.style.left = Math.max(4, Math.min(x, innerWidth - menu.offsetWidth - 4)) + 'px';
+  menu.style.top = Math.max(4, Math.min(y, innerHeight - menu.offsetHeight - 4)) + 'px';
+  const buttons = [...menu.querySelectorAll('button')];
+  buttons[0]?.focus();
+  const closeOutside = (event) => { if (!menu.contains(event.target)) closeContextMenu(); };
+  const onKey = (event) => {
+    const index = buttons.indexOf(document.activeElement);
+    if (event.key === 'Tab') { closeContextMenu(); trigger?.focus(); return; }
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      event.stopPropagation();
+      closeContextMenu();
+      trigger?.focus();
+    }
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      event.preventDefault();
+      const delta = event.key === 'ArrowDown' ? 1 : -1;
+      buttons[(index + delta + buttons.length) % buttons.length]?.focus();
+    }
+  };
+  menu.addEventListener('keydown', onKey);
+  document.addEventListener('pointerdown', closeOutside, true);
+  menu._cleanup = closeContextMenu;
+  menu.removeOutsideListener = () => document.removeEventListener('pointerdown', closeOutside, true);
 }
-function closeContextMenu() { if (activeCtxMenu) { activeCtxMenu._cleanup?.(); activeCtxMenu.remove(); activeCtxMenu = null; } }
+
+function closeContextMenu() {
+  activeCtxMenu?.removeOutsideListener();
+  activeCtxMenu?.remove();
+  activeCtxMenu = null;
+}
 
 // ---- Reference autocomplete ----
 // Custom filtered dropdown (not native <datalist>): styleable, caps the list
 // at 20 rows so a 1000-entry Param source stays fast, and keeps its own arrow
 // navigation from bubbling to the entry-list keyboard handler.
 
+let nextReferenceId = 0;
+
 export function createRefInput(value, suggestions, onChange, placeholder) {
-  const wrap = h('div', { style: { position: 'relative' } });
+  const id = `pbs-reference-${++nextReferenceId}`;
+  const wrap = h('div', { className: 'pbs-reference' });
   const input = h('input', {
-    type: 'text',
+    type: 'text', role: 'combobox', 'aria-label': placeholder || _t('Reference'), 'aria-expanded': 'false', 'aria-controls': id, 'aria-autocomplete': 'list',
     value: String(value || ''),
     style: { width: '100%' },
     title: String(value || ''), // full text on hover when the cell truncates it
   });
   if (placeholder) input.placeholder = placeholder;
-  input.style.cssText += ';padding:3px 6px;border:1px solid var(--border);border-radius:3px;background:var(--input-bg);color:var(--text-primary);font-size:12px;font-family:inherit;outline:none;width:100%;';
   // `suggestions` may be a static array or a function returning the current
   // list (the evolution Param list depends on the selected Method).
   const getList = () => (typeof suggestions === 'function' ? (suggestions() || []) : (suggestions || []));
 
   const dropdown = h('div', {
-    className: 'pbs-ref-dropdown',
+    className: 'pbs-ref-dropdown', id, role: 'listbox',
     style: { display: 'none' },
   });
 
@@ -190,21 +249,42 @@ export function createRefInput(value, suggestions, onChange, placeholder) {
     filtered = list.filter(s => typeof s === 'string' && normalizeSearch(s).includes(needle)).slice(0, 20);
   }
 
+  function hide() {
+    dropdown.style.display = 'none';
+    input.setAttribute('aria-expanded', 'false');
+    input.removeAttribute('aria-activedescendant');
+  }
+
   function renderDropdown() {
     dropdown.innerHTML = '';
-    if (!filtered.length) { dropdown.style.display = 'none'; activeIdx = -1; return; }
+    if (!filtered.length) { hide(); activeIdx = -1; return; }
     dropdown.style.display = 'block';
+    input.setAttribute('aria-expanded', 'true');
+    if (activeIdx >= 0) input.setAttribute('aria-activedescendant', `${id}-${activeIdx}`);
+    else input.removeAttribute('aria-activedescendant');
     filtered.forEach((item, i) => {
-      const opt = h('div', { className: `pbs-ref-item ${i === activeIdx ? 'active' : ''}`, textContent: item });
+      const opt = h('div', { id: `${id}-${i}`, role: 'option', 'aria-selected': String(i === activeIdx), className: `pbs-ref-item ${i === activeIdx ? 'active' : ''}`, textContent: item });
       opt.addEventListener('mousedown', (e) => {
         e.preventDefault();
         input.value = item;
         input.title = item;
-        dropdown.style.display = 'none';
+        hide();
         onChange(item);
       });
       dropdown.appendChild(opt);
     });
+    const rect = input.getBoundingClientRect();
+    dropdown.style.left = rect.left + 'px';
+    dropdown.style.minWidth = rect.width + 'px';
+    dropdown.style.top = (rect.bottom + dropdown.offsetHeight <= innerHeight ? rect.bottom : Math.max(0, rect.top - dropdown.offsetHeight)) + 'px';
+    const active = dropdown.children[activeIdx];
+    if (active) {
+      const top = active.offsetTop;
+      if (top < dropdown.scrollTop) dropdown.scrollTop = top;
+      if (top + active.offsetHeight > dropdown.scrollTop + dropdown.clientHeight) {
+        dropdown.scrollTop = top + active.offsetHeight - dropdown.clientHeight;
+      }
+    }
   }
 
   input.addEventListener('input', () => {
@@ -221,7 +301,7 @@ export function createRefInput(value, suggestions, onChange, placeholder) {
     renderDropdown();
   });
 
-  input.addEventListener('blur', () => { setTimeout(() => { dropdown.style.display = 'none'; }, 150); });
+  input.addEventListener('blur', hide);
 
   input.addEventListener('keydown', (e) => {
     if (dropdown.style.display === 'none' || !filtered.length) return;
@@ -231,13 +311,13 @@ export function createRefInput(value, suggestions, onChange, placeholder) {
     else if (e.key === 'ArrowUp') { e.preventDefault(); e.stopPropagation(); activeIdx = Math.max(activeIdx - 1, 0); renderDropdown(); }
     else if (e.key === 'Enter' || e.key === 'Tab') {
       if (activeIdx >= 0 && activeIdx < filtered.length) {
-        e.preventDefault();
+        if (e.key === 'Enter') e.preventDefault();
         input.value = filtered[activeIdx];
         input.title = input.value;
-        dropdown.style.display = 'none';
+        hide();
         onChange(input.value);
       }
-    } else if (e.key === 'Escape') { dropdown.style.display = 'none'; }
+    } else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); hide(); }
   });
 
   wrap.appendChild(input);

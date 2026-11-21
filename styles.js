@@ -8,7 +8,7 @@ export const CSS = `
   flex-direction: column;
   height: 100%;
   font-family: inherit;
-  font-size: 12px;
+  font-size: var(--font-md, 12px);
   color: var(--text-primary);
   background: var(--bg-primary);
   overflow: hidden;
@@ -18,16 +18,12 @@ export const CSS = `
 .pbs-toolbar {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 10px;
-  background: var(--bg-tertiary);
+  flex-wrap: wrap;
+  gap: var(--space-3, 6px);
+  padding: var(--space-3, 6px) var(--space-4, 8px);
+  background: var(--bg-secondary);
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
-}
-.pbs-toolbar-title {
-  font-weight: 700;
-  font-size: 13px;
-  color: var(--text-primary);
 }
 .pbs-toolbar-sep {
   width: 1px;
@@ -38,10 +34,10 @@ export const CSS = `
 .pbs-search {
   padding: 4px 8px;
   border: 1px solid var(--border);
-  border-radius: 4px;
+  border-radius: var(--radius-md, 4px);
   background: var(--input-bg);
   color: var(--text-primary);
-  font-size: 12px;
+  font-size: var(--font-md, 12px);
   width: 200px;
   outline: none;
 }
@@ -51,20 +47,21 @@ export const CSS = `
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 4px 10px;
+  min-height: var(--control-h-md, 26px);
+  padding: 0 var(--space-4, 8px);
   border: 1px solid var(--border);
-  border-radius: 4px;
+  border-radius: var(--radius-md, 4px);
   background: var(--bg-tertiary);
   color: var(--text-secondary);
-  font-size: 11px;
+  font-size: var(--font-sm, 11px);
   cursor: pointer;
   white-space: nowrap;
 }
-.pbs-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
-.pbs-btn.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
-.pbs-btn.primary:hover { background: var(--accent-hover); }
+.pbs-btn:hover:not(:disabled) { background: var(--bg-hover); color: var(--text-primary); }
+.pbs-btn.accent { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+.pbs-btn.accent:hover:not(:disabled) { background: var(--accent-hover); }
 .pbs-btn.danger { color: var(--danger); border-color: var(--danger); }
-.pbs-btn.danger:hover { background: var(--danger); color: #fff; }
+.pbs-btn.danger:hover:not(:disabled) { background: var(--danger); color: var(--accent-text); }
 .pbs-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
 .pbs-file-filter-bar { display: flex; align-items: center; }
@@ -79,7 +76,7 @@ export const CSS = `
 
 /* ---- File sidebar ---- */
 .pbs-sidebar {
-  width: 120px;
+  width: 152px;
   min-width: 100px;
   background: var(--bg-secondary);
   border-right: 1px solid var(--border);
@@ -90,14 +87,20 @@ export const CSS = `
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 6px 8px;
+  width: 100%;
+  min-height: var(--control-h-md, 26px);
+  border: 0;
+  background: transparent;
+  font-family: inherit;
+  text-align: left;
+  padding: var(--space-3, 6px) var(--space-4, 8px);
   cursor: pointer;
   color: var(--text-secondary);
-  font-size: 11px;
+  font-size: var(--font-sm, 11px);
   transition: background 0.1s;
   gap: 4px;
 }
-.pbs-sidebar-item:hover { background: var(--bg-hover); color: var(--text-primary); }
+.pbs-sidebar-item:hover:not(:disabled) { background: var(--bg-hover); color: var(--text-primary); }
 .pbs-sidebar-item.active {
   background: var(--accent-muted);
   color: var(--text-primary);
@@ -106,7 +109,7 @@ export const CSS = `
 }
 .pbs-sidebar-label { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pbs-sidebar-badge {
-  font-size: 10px;
+  font-size: var(--font-sm, 11px);
   background: var(--bg-tertiary);
   color: var(--text-tertiary);
   padding: 1px 5px;
@@ -132,16 +135,11 @@ export const CSS = `
 .pbs-table-wrap {
   flex: 1;
   min-height: 0;
-  overflow: auto;
+  overflow: hidden auto;
 }
 .pbs-table {
   width: 100%;
   border-collapse: collapse;
-  /* Fixed layout: a column's width is exactly what its <th> declares, never
-     stretched by a wide cell (e.g. Steel's 10-badge Weaknesses list). Without
-     this, table-layout:auto lets one loaded row's intrinsic content width
-     hijack the whole column and starve its neighbors — that's what looked
-     like "badges in the wrong column" and "doubled row height" before. */
   table-layout: fixed;
 }
 .pbs-table th {
@@ -150,7 +148,7 @@ export const CSS = `
   z-index: 1;
   padding: 5px 8px;
   text-align: left;
-  font-size: 10px;
+  font-size: var(--font-sm, 11px);
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.3px;
@@ -164,14 +162,14 @@ export const CSS = `
   text-overflow: ellipsis;
 }
 .pbs-table th:hover { color: var(--text-primary); }
-.pbs-table th .pbs-sort-arrow { margin-left: 3px; font-size: 9px; }
+.pbs-sort-arrow { display: inline-flex; flex: none; color: var(--accent); }
 .pbs-table td {
   height: 44px;
   box-sizing: border-box;
   padding: 4px 8px;
   border-bottom: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
   color: var(--text-secondary);
-  font-size: 12px;
+  font-size: var(--font-md, 12px);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -187,7 +185,8 @@ export const CSS = `
 }
 
 /* ---- Row icon column (Pokemon/Items/Trainers) ---- */
-.pbs-table td.pbs-icon-cell, .pbs-table th.pbs-icon-cell { width: 44px; padding: 2px 6px; text-align: center; }
+.pbs-table td.pbs-icon-cell, .pbs-table th.pbs-icon-cell { padding: 2px 4px; text-align: center; text-overflow: clip; }
+.pbs-selection-count:empty { display: none; }
 .pbs-icon-img, .pbs-icon-cell canvas {
   width: 34px;
   height: 34px;
@@ -205,18 +204,11 @@ export const CSS = `
 .pbs-table td.pbs-type-cell { padding: 0 6px; }
 .pbs-type-cell-inner {
   display: flex;
-  gap: 3px;
+  gap: var(--space-1, 2px);
   align-items: center;
-  flex-wrap: nowrap;
-  height: 100%;
-  /* More badges than fit (e.g. Steel's 10 resistances) scroll horizontally
-     inside the cell instead of wrapping into a second line (blows up row
-     height) or overflowing into the next column. */
-  overflow-x: auto;
-  overflow-y: hidden;
-  scrollbar-width: none;
+  flex-wrap: wrap;
+  padding-block: var(--space-2, 4px);
 }
-.pbs-type-cell-inner::-webkit-scrollbar { display: none; }
 .pbs-type-pill {
   display: inline-block;
   flex-shrink: 0;
@@ -257,19 +249,23 @@ export const CSS = `
   background: var(--bg-tertiary);
   border-top: 1px solid var(--border);
   flex-shrink: 0;
-  font-size: 11px;
+  font-size: var(--font-sm, 11px);
   color: var(--text-secondary);
 }
 .pbs-page-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2, 4px);
   padding: 2px 8px;
   border: 1px solid var(--border);
   border-radius: 3px;
   background: var(--bg-primary);
   color: var(--text-secondary);
   cursor: pointer;
-  font-size: 11px;
+  font-size: var(--font-sm, 11px);
 }
-.pbs-page-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
+.pbs-page-icon { display: inline-flex; flex: none; }
+.pbs-page-btn:hover:not(:disabled) { background: var(--bg-hover); color: var(--text-primary); }
 .pbs-page-btn:disabled { opacity: 0.3; cursor: not-allowed; }
 
 /* ---- Right: preview + detail ---- */
@@ -320,7 +316,7 @@ export const CSS = `
   image-rendering: pixelated;
   background-size: 12px 12px;
   background-position: 0 0, 0 6px, 6px -6px, -6px 0px;
-  border-radius: 4px;
+  border-radius: var(--radius-md, 4px);
 }
 .pbs-preview-map {
   max-width: 100%;
@@ -328,7 +324,7 @@ export const CSS = `
   width: auto;
   height: auto;
   object-fit: contain;
-  border-radius: 4px;
+  border-radius: var(--radius-md, 4px);
 }
 .pbs-preview-placeholder {
   display: flex;
@@ -336,7 +332,7 @@ export const CSS = `
   align-items: center;
   gap: 4px;
   color: var(--text-tertiary);
-  font-size: 11px;
+  font-size: var(--font-sm, 11px);
 }
 .pbs-preview-placeholder-icon {
   font-size: 32px;
@@ -346,7 +342,7 @@ export const CSS = `
   position: absolute;
   bottom: 4px;
   left: 8px;
-  font-size: 10px;
+  font-size: var(--font-sm, 11px);
   color: var(--text-tertiary);
 }
 
@@ -356,7 +352,7 @@ export const CSS = `
    per-species correction, unlike back's SpeciesMetrics nudge). */
 .pbs-preview-pokemon {
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   justify-content: center;
   gap: 10px;
 }
@@ -375,11 +371,11 @@ export const CSS = `
   border-radius: 12px;
   background: var(--bg-tertiary);
   color: var(--text-secondary);
-  font-size: 10px;
+  font-size: var(--font-sm, 11px);
   font-weight: 600;
   cursor: pointer;
 }
-.pbs-preview-shiny-btn:hover { border-color: var(--accent); color: var(--text-primary); }
+.pbs-preview-shiny-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--text-primary); }
 .pbs-preview-shiny-btn.active { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
 
 /* ---- Detail panel ---- */
@@ -395,7 +391,7 @@ export const CSS = `
   padding: 6px 10px;
   background: var(--bg-tertiary);
   border-bottom: 1px solid var(--border);
-  font-size: 11px;
+  font-size: var(--font-sm, 11px);
   font-weight: 600;
   color: var(--text-secondary);
   flex-shrink: 0;
@@ -421,7 +417,7 @@ export const CSS = `
 }
 .pbs-field.full-width { grid-column: 1 / -1; }
 .pbs-field label {
-  font-size: 10px;
+  font-size: var(--font-sm, 11px);
   font-weight: 600;
   color: var(--text-tertiary);
   text-transform: uppercase;
@@ -448,13 +444,14 @@ export const CSS = `
   cursor: pointer;
   margin-left: auto;
 }
-.pbs-field-adopt:hover { border-color: var(--accent); color: var(--text-primary); }
+.pbs-field-adopt:hover:not(:disabled) { border-color: var(--accent); color: var(--text-primary); }
 /* Filtered to one file: fields it doesn't own show the inherited value, muted
    and non-interactive — "Override here" is the only live control. */
 .pbs-field-inherited .pbs-field-tag { background: var(--bg-hover); color: var(--text-tertiary); }
 .pbs-field-inherited input,
 .pbs-field-inherited select,
 .pbs-field-inherited textarea,
+.pbs-field-inherited .pbs-switch,
 .pbs-field-inherited :is(.pbs-list-editor, .pbs-stat-row) :is(input, select, button):not(.pbs-field-adopt) {
   opacity: 0.55;
   pointer-events: none;
@@ -475,7 +472,7 @@ export const CSS = `
   border-radius: 3px;
   background: var(--input-bg);
   color: var(--text-primary);
-  font-size: 12px;
+  font-size: var(--font-md, 12px);
   font-family: inherit;
   outline: none;
   width: 100%;
@@ -485,13 +482,6 @@ export const CSS = `
 .pbs-field textarea:focus { border-color: var(--accent); }
 .pbs-field textarea { min-height: 140px; resize: vertical; }
 .pbs-field input[type="number"] { width: 70px; }
-.pbs-field input[type="checkbox"] {
-  width: 15px;
-  height: 15px;
-  accent-color: var(--accent);
-  cursor: pointer;
-  flex-shrink: 0;
-}
 .pbs-field select {
   -webkit-appearance: none;
   appearance: none;
@@ -515,7 +505,7 @@ export const CSS = `
   border-top: 1px solid var(--border);
   cursor: pointer;
   color: var(--text-secondary);
-  font-size: 11px;
+  font-size: var(--font-sm, 11px);
   font-weight: 600;
   border-left: none;
   border-right: none;
@@ -525,7 +515,7 @@ export const CSS = `
   width: 100%;
   text-align: left;
 }
-.pbs-section-toggle:hover { color: var(--text-primary); }
+.pbs-section-toggle:hover:not(:disabled) { color: var(--text-primary); }
 .pbs-section-arrow { font-size: 9px; transition: transform 0.15s; }
 .pbs-section-arrow.open { transform: rotate(90deg); }
 .pbs-section-arrow.open + span { color: var(--accent); }
@@ -538,7 +528,7 @@ export const CSS = `
   gap: 2px;
 }
 .pbs-list-row {
-  margin-bottom: 4px; 
+  margin-bottom: 4px;
   display: flex;
   gap: 4px;
   align-items: center;
@@ -549,7 +539,7 @@ export const CSS = `
   border-radius: 3px;
   background: var(--input-bg);
   color: var(--text-primary);
-  font-size: 11px;
+  font-size: var(--font-md, 12px);
   outline: none;
   flex: 1;
   min-width: 0;
@@ -564,19 +554,20 @@ export const CSS = `
   padding: 0 4px;
   line-height: 1;
 }
-.pbs-list-remove:hover { color: var(--danger); }
-.pbs-goto-btn:hover { color: var(--accent); }
+.pbs-list-remove:hover:not(:disabled) { color: var(--danger); }
+.pbs-goto-btn { color: var(--text-tertiary); }
+.pbs-goto-btn:not(:disabled):is(:hover, :focus-visible) { color: var(--accent); }
 .pbs-list-add {
   background: transparent;
   border: 1px dashed var(--border);
   color: var(--text-tertiary);
   cursor: pointer;
-  font-size: 11px;
+  font-size: var(--font-sm, 11px);
   padding: 2px 6px;
   border-radius: 3px;
   text-align: center;
 }
-.pbs-list-add:hover { color: var(--accent); border-color: var(--accent); }
+.pbs-list-add:hover:not(:disabled) { color: var(--accent); border-color: var(--accent); }
 
 /* ---- Stat bars ---- */
 .pbs-stat-row {
@@ -587,7 +578,7 @@ export const CSS = `
 }
 .pbs-stat-label {
   width: 32px;
-  font-size: 10px;
+  font-size: var(--font-sm, 11px);
   font-weight: 600;
   color: var(--text-tertiary);
   text-align: right;
@@ -602,11 +593,10 @@ export const CSS = `
 .pbs-stat-bar-fill {
   height: 100%;
   border-radius: 3px;
-  transition: width 0.2s;
 }
 .pbs-stat-value {
   width: 28px;
-  font-size: 11px;
+  font-size: var(--font-sm, 11px);
   color: var(--text-secondary);
   text-align: center;
   font-variant-numeric: tabular-nums;
@@ -632,14 +622,14 @@ export const CSS = `
   display: inline-block;
   padding: 1px 5px;
   border-radius: 3px;
-  font-size: 10px;
+  font-size: var(--font-sm, 11px);
   font-weight: 600;
 }
 
 /* ---- Sub-section (encounters, trainer pokemon) ---- */
 .pbs-subsection {
   border: 1px solid var(--border);
-  border-radius: 4px;
+  border-radius: var(--radius-md, 4px);
   margin: 3px 0;
   overflow: hidden;
 }
@@ -647,7 +637,7 @@ export const CSS = `
   padding: 3px 8px;
   background: var(--bg-tertiary);
   font-weight: 600;
-  font-size: 11px;
+  font-size: var(--font-sm, 11px);
   color: var(--text-secondary);
   display: flex;
   align-items: center;
@@ -658,7 +648,7 @@ export const CSS = `
 /* ---- Context menu ---- */
 .pbs-ctx-menu {
   position: fixed;
-  z-index: 10000;
+  z-index: var(--z-context, 19999);
   background: var(--bg-secondary);
   border: 1px solid var(--border);
   border-radius: 6px;
@@ -673,13 +663,13 @@ export const CSS = `
   border: none;
   background: transparent;
   color: var(--text-secondary);
-  font-size: 12px;
+  font-size: var(--font-md, 12px);
   font-family: inherit;
   cursor: pointer;
   text-align: left;
 }
-.pbs-ctx-item:hover { background: var(--bg-hover); color: var(--text-primary); }
-.pbs-ctx-item.danger:hover { background: var(--danger); color: #fff; }
+.pbs-ctx-item:hover:not(:disabled) { background: var(--bg-hover); color: var(--text-primary); }
+.pbs-ctx-item.danger:hover:not(:disabled) { background: var(--danger); color: var(--accent-text); }
 .pbs-ctx-sep { height: 1px; background: var(--border); margin: 4px 0; }
 
 /* ---- Status bar ---- */
@@ -690,18 +680,12 @@ export const CSS = `
   padding: 4px 10px;
   background: var(--bg-secondary);
   border-top: 1px solid var(--border);
-  font-size: 11px;
+  font-size: var(--font-sm, 11px);
   color: var(--text-tertiary);
   flex-shrink: 0;
 }
 .pbs-status-spacer { flex: 1; }
-.pbs-dirty-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--warning);
-  display: inline-block;
-}
+.pbs-status-file { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* ---- Empty / Loading ---- */
 .pbs-empty {
@@ -710,7 +694,7 @@ export const CSS = `
   justify-content: center;
   height: 100%;
   color: var(--text-tertiary);
-  font-size: 12px;
+  font-size: var(--font-md, 12px);
   padding: 20px;
   text-align: center;
 }
@@ -724,21 +708,18 @@ export const CSS = `
 
 /* ---- Reference autocomplete ---- */
 .pbs-ref-dropdown {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  right: 0;
-  z-index: 100;
+  position: fixed;
+  z-index: var(--z-dropdown, 1000);
   background: var(--bg-secondary);
   border: 1px solid var(--border);
-  border-radius: 4px;
+  border-radius: var(--radius-md, 4px);
   max-height: 160px;
   overflow-y: auto;
   box-shadow: 0 4px 12px var(--shadow);
 }
 .pbs-ref-item {
   padding: 3px 8px;
-  font-size: 11px;
+  font-size: var(--font-sm, 11px);
   color: var(--text-secondary);
   cursor: pointer;
   white-space: nowrap;
@@ -750,10 +731,186 @@ export const CSS = `
   color: var(--text-primary);
 }
 
-/* ---- Scrollbar ---- */
-.pbs-root ::-webkit-scrollbar { width: 6px; height: 6px; }
-.pbs-root ::-webkit-scrollbar-track { background: transparent; }
-.pbs-root ::-webkit-scrollbar-thumb { background: var(--bg-tertiary); border-radius: 3px; }
-.pbs-root ::-webkit-scrollbar-thumb:hover { background: var(--text-tertiary); }
+/* ---- Workspace controls ---- */
+.pbs-detail-body, .pbs-section-body, .pbs-field, .pbs-reference { min-width: 0; }
+.pbs-root [hidden] { display: none !important; }
+.pbs-root :is(button, input, select, textarea, tr, [role="separator"]):focus-visible,
+.pbs-ctx-item:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.pbs-list-toolbar {
+  padding: var(--space-3, 6px) var(--space-4, 8px);
+  border-bottom: 1px solid var(--border);
+}
+.pbs-list-toolbar { display: flex; align-items: center; gap: var(--space-4, 8px); }
+.pbs-list-toolbar .pbs-search { flex: 1; width: 100%; min-width: 0; }
+.pbs-page-size { display: flex; align-items: center; gap: var(--space-2, 4px); white-space: nowrap; }
+.pbs-page-size input { width: 62px; box-sizing: border-box; }
+.pbs-version-select, .pbs-file-select { max-width: 160px; }
+.pbs-btn.success svg { color: var(--success); }
+.pbs-table { font-variant-numeric: tabular-nums; }
+.pbs-sort {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2, 4px);
+  padding: 0;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+.pbs-detail-header { position: sticky; top: 0; z-index: 1; min-height: 30px; }
+.pbs-field-label-row { flex-wrap: wrap; }
+.pbs-category-select, .pbs-btn.pbs-return { display: none; }
+.pbs-dirty { color: var(--warning); font-size: var(--font-sm, 11px); }
+.pbs-error { flex-direction: column; gap: var(--space-4, 8px); color: var(--danger); }
+.pbs-resizer { touch-action: none; }
+
+.pbs-root.compact :is(.pbs-sidebar, .pbs-resizer, .pbs-right) { display: none; }
+.pbs-root.compact .pbs-preview { min-height: 0; max-height: 140px; overflow: auto; }
+.pbs-root.compact .pbs-category-select { display: inline-block; max-width: 150px; }
+.pbs-root.compact .show-detail .pbs-center { display: none; }
+.pbs-root.compact .show-detail .pbs-right { display: flex; width: 100% !important; min-width: 0; }
+.pbs-root.compact .pbs-btn.pbs-return { display: inline-flex; align-self: start; margin: var(--space-3, 6px); }
+
+.pbs-column-resize {
+  position: absolute;
+  inset: 0 0 0 auto;
+  width: 7px;
+  cursor: col-resize;
+  touch-action: none;
+}
+.pbs-column-resize:is(:hover, :focus-visible) { background: var(--accent); }
+.pbs-table th { padding-inline-end: 10px; }
+.pbs-scrolling-text { display: block; }
+.pbs-sort > .pbs-scrolling-text { flex: 1; }
+.pbs-type-pill { min-width: 0; max-width: 100%; }
+.pbs-mini-statbar-total { min-width: 0; }
+.pbs-move-category {
+  display: inline-block;
+  flex: none;
+  width: 46px;
+  height: 20px;
+  background-size: 46px 60px;
+  vertical-align: middle;
+  background-repeat: no-repeat;
+  image-rendering: pixelated;
+}
+.pbs-type-cell-inner > .pbs-scrolling-text { width: 100%; }
+.pbs-trainer-cell { display: flex; align-items: center; gap: var(--space-2, 4px); }
+.pbs-trainer-cell > .pbs-scrolling-text { flex: 1; }
+.pbs-trainer-icon { display: inline-flex; flex: 0 0 26px; }
+.pbs-icon-strip {
+  display: inline-block;
+  vertical-align: middle;
+  image-rendering: pixelated;
+  background-repeat: no-repeat;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .pbs-icon-strip { animation: pbs-icon-frames var(--pbs-icon-duration) steps(var(--pbs-icon-frames)) infinite; }
+}
+@keyframes pbs-icon-frames {
+  to { background-position: var(--pbs-icon-end); }
+}
+.pbs-trainer-icon img { width: 26px; height: 26px; }
+.pbs-encounter-type, .pbs-bgm-row input {
+  box-sizing: border-box;
+  min-height: var(--control-h-md, 26px);
+}
+.pbs-bgm-row input { min-width: 0; font-size: var(--font-md, 12px); }
+.pbs-root input.pbs-number-tight { appearance: textfield; }
+.pbs-root input.pbs-number-tight::-webkit-inner-spin-button,
+.pbs-root input.pbs-number-tight::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+
+.pbs-switch {
+  display: inline-flex;
+  border-radius: var(--radius-lg, 10px);
+}
+
+.pbs-switch.ms-bare:focus-visible {
+  outline: 2px solid var(--accent, #7c8aff);
+  outline-offset: 2px;
+}
+
+.icon-switch-track {
+  position: relative;
+  width: 44px;
+  height: 22px;
+  border-radius: var(--radius-lg, 10px);
+  background: var(--bg-tertiary, #313244);
+  border: 1px solid var(--text-secondary, #a0a0b0);
+  transition: background var(--transition-slow, 200ms) ease, border-color var(--transition-slow, 200ms) ease;
+  overflow: hidden;
+}
+
+.pbs-switch[aria-checked="true"] .icon-switch-track {
+  background: var(--accent-muted, rgba(124, 138, 255, 0.15));
+  border-color: var(--accent, #7c8aff);
+}
+
+.icon-switch-symbol {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  inline-size: calc(100% - 18px);
+  justify-content: center;
+  color: var(--text-primary, #e0e0e8);
+  pointer-events: none;
+  transition: opacity var(--transition-slow, 200ms) ease;
+}
+
+.icon-switch-off { right: 0; }
+.icon-switch-on { left: 0; }
+
+.pbs-switch[aria-checked="true"] .icon-switch-off,
+.pbs-switch[aria-checked="false"] .icon-switch-on { opacity: 0.75; }
+
+.icon-switch-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  /* Concentric with the track: its radius minus the 3px (border + inset) gap. */
+  border-radius: calc(var(--radius-lg, 10px) - 3px);
+  background: var(--text-secondary, #a0a0b0);
+  border: 1px solid transparent;
+  box-shadow: var(--shadow-popup, none);
+  transition: transform var(--transition-slow, 200ms) cubic-bezier(0.4, 0, 0.2, 1), background var(--transition-slow, 200ms) ease;
+}
+
+.pbs-switch[aria-checked="true"] .icon-switch-thumb {
+  transform: translateX(22px);
+  background: var(--accent, #7c8aff);
+  border-color: var(--accent, #7c8aff);
+}
+
+.pbs-switch:hover:not(:disabled) .icon-switch-thumb {
+  background: var(--text-primary, #e0e0e8);
+}
+
+.pbs-switch:hover:not(:disabled) .icon-switch-track {
+  background: var(--bg-hover, #2a2a40);
+  border-color: var(--text-primary, #e0e0e8);
+}
+
+.pbs-switch[aria-checked="true"]:hover:not(:disabled) .icon-switch-track {
+  background: color-mix(in srgb, var(--accent, #7c8aff) 28%, var(--bg-tertiary, #313244));
+  border-color: var(--accent-hover, #959fff);
+}
+
+.pbs-switch[aria-checked="true"]:hover:not(:disabled) .icon-switch-thumb {
+  background: var(--accent-hover, #959fff);
+  border-color: var(--accent-hover, #959fff);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pbs-root * { transition: none; }
+}
 
 `;

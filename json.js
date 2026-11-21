@@ -107,14 +107,10 @@ function trainersToTxt(data) {
 }
 
 export function parseJsonPbs(content, fileType) {
-  let data;
-  try {
-    data = JSON.parse(content);
-  } catch (e) {
-    console.error(`PBS JSON parse error (${fileType}):`, e);
-    return [];
+  const data = JSON.parse(content);
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    throw new Error('Expected a PBS JSON object');
   }
-  if (!data || typeof data !== 'object' || Array.isArray(data)) return [];
   const txt = fileType === 'encounters' ? encountersToTxt(data)
     : fileType === 'trainers' ? trainersToTxt(data)
     : sectionsToTxt(data);

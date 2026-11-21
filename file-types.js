@@ -68,8 +68,7 @@ export function getPokemonSpriteVariants(fileType, entry, version) {
 }
 
 // Party/PC icon (list rows, table icon column). Separate folder from the
-// battler sprite, always a horizontal strip — `frames` tells the caller how
-// many to crop the first one from.
+// battler sprite. Pokémon icons use horizontal strips of square frames.
 export function getIconGraphic(fileType, entry, version) {
   if (fileType === 'pokemon' || fileType === 'pokemon_forms') {
     const id = padId(entry);
@@ -79,11 +78,17 @@ export function getIconGraphic(fileType, entry, version) {
     const formName = `${name}${formSuffix}`;
     const formId = formIndex > 0 ? `${id}_${formIndex}` : id;
     const path = version >= 21 ? `Graphics/Pokemon/Icons/${formName}.png` : `Graphics/Icons/icon${formId}.png`;
-    return { path, frames: 2 };
+    return { path, animation: 'pokemon' };
+  }
+  if (version < 21 && fileType === 'trainer_types') {
+    const id = padId(entry);
+    if (!id) return null;
+    const file = `trainer${id}.png`;
+    return { path: `Graphics/Battlers/Trainers/${file}`, fallbackPaths: [`Graphics/Trainers/${file}`, `Graphics/Characters/${file}`], animation: 'trainer' };
   }
   if (fileType === 'items' || fileType === 'trainers' || fileType === 'trainer_types') {
     const path = getPrimaryGraphic(fileType, entry, version);
-    return path ? { path, frames: 1 } : null;
+    return path ? { path, animation: fileType === 'items' ? null : 'trainer' } : null;
   }
   return null;
 }
@@ -154,8 +159,8 @@ export const FILE_TYPES = {
       { key: '_id', label: '#', width: 40, numeric: true },
       { key: 'Name', label: 'Name', width: 85 },
       { key: 'InternalName', label: 'Internal', width: 65 },
-      { key: 'Types', label: 'Types', width: 60, typeList: true },
-      { key: 'BaseStats', label: 'Stats', width: 155, statBar: true },
+      { key: 'Types', label: 'Types', width: 156, typeList: true },
+      { key: 'BaseStats', label: 'Stats', width: 116, statBar: true },
     ],
   },
   pokemon_forms: {
@@ -163,7 +168,7 @@ export const FILE_TYPES = {
     displayField: 'FormName', headerField: 'InternalName',
     sections: [
       { label: 'Basic', fields: [
-        { key: 'InternalName', label: 'Pokemon', type: 'text' },
+        { key: 'InternalName', label: 'Pokemon', type: 'text', ref: 'pokemon' },
         { key: 'FormIndex', label: 'Form Index', type: 'number' },
         { key: 'FormName', label: 'Form Name', type: 'text' },
         { key: 'Types', label: 'Types', type: 'list', ref: 'types' },
@@ -192,7 +197,7 @@ export const FILE_TYPES = {
       { key: 'InternalName', label: 'Pokemon', width: 70 },
       { key: 'FormIndex', label: 'Form', width: 30, numeric: true },
       { key: 'FormName', label: 'Name', width: 85 },
-      { key: 'Types', label: 'Types', width: 60, typeList: true },
+      { key: 'Types', label: 'Types', width: 156, typeList: true },
     ],
   },
   moves: {
@@ -210,14 +215,14 @@ export const FILE_TYPES = {
       { key: 'EffectChance', label: 'Effect Chance', type: 'number', min: 0, max: 100 },
       { key: 'Priority', label: 'Priority', type: 'number', min: -7, max: 7 },
       { key: 'Target', label: 'Target', type: 'text' },
-      { key: 'Flags', label: 'Flags', type: 'text' },
+      { key: 'Flags', label: 'Flags', type: 'list', fullWidth: true },
       { key: 'Description', label: 'Description', type: 'textarea', fullWidth: true },
     ]}],
     columns: [
       { key: '_id', label: '#', width: 40, numeric: true },
       { key: 'Name', label: 'Name', width: 85 },
-      { key: 'Type', label: 'Type', width: 46, typeList: true },
-      { key: 'Category', label: 'Cat', width: 46 },
+      { key: 'Type', label: 'Type', width: 89, typeList: true },
+      { key: 'Category', label: 'Category', width: 84, categoryIcon: true },
       { key: 'Power', label: 'Pow', width: 34, numeric: true, dashIfEmpty: true },
       { key: 'Accuracy', label: 'Acc', width: 34, numeric: true, dashIfEmpty: true },
       { key: 'TotalPP', label: 'PP', width: 30, numeric: true },
@@ -251,7 +256,7 @@ export const FILE_TYPES = {
       { key: 'Description', label: 'Description', type: 'textarea', fullWidth: true },
       { key: 'FieldUse', label: 'Field Use', type: 'text' },
       { key: 'BattleUse', label: 'Battle Use', type: 'text' },
-      { key: 'Flags', label: 'Flags', type: 'text' },
+      { key: 'Flags', label: 'Flags', type: 'list', fullWidth: true },
       { key: 'Consumable', label: 'Consumable', type: 'checkbox' },
       { key: 'ShowQuantity', label: 'Show Quantity', type: 'checkbox' },
       { key: 'Move', label: 'Move', type: 'text', ref: 'moves' },
@@ -307,7 +312,7 @@ export const FILE_TYPES = {
       { key: 'Items', label: 'Items', type: 'list', ref: 'items' },
     ]}],
     columns: [
-      { key: 'TrainerType', label: 'Type', width: 90 },
+      { key: 'TrainerType', label: 'Type', width: 90, trainerIcon: true },
       { key: 'Name', label: 'Name', width: 90 },
       { key: 'Version', label: 'Ver', width: 34 },
     ],
@@ -321,12 +326,12 @@ export const FILE_TYPES = {
       { key: 'BaseMoney', label: 'Base Money', type: 'number' },
       { key: 'Gender', label: 'Gender', type: 'select', options: ['Male','Female','Mixed'] },
       { key: 'SkillLevel', label: 'Skill Level', type: 'number' },
-      { key: 'BattleBGM', label: 'Battle BGM', type: 'bgm' },
-      { key: 'VictoryBGM', label: 'Victory BGM', type: 'bgm' },
-      { key: 'IntroBGM', label: 'Intro BGM', type: 'bgm' },
+      { key: 'BattleBGM', label: 'Battle BGM', type: 'bgm', fullWidth: true },
+      { key: 'VictoryBGM', label: 'Victory BGM', type: 'bgm', fullWidth: true },
+      { key: 'IntroBGM', label: 'Intro BGM', type: 'bgm', fullWidth: true },
     ]}],
     columns: [
-      { key: 'Name', label: 'Name', width: 110 },
+      { key: 'Name', label: 'Name', width: 110, trainerIcon: true },
       { key: 'InternalName', label: 'Internal', width: 85 },
       { key: 'BaseMoney', label: 'Base $', width: 55, numeric: true },
     ],

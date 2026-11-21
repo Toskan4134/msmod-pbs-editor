@@ -14,29 +14,12 @@ function openPbsEditor(ctx) {
     height: '88vh',
     render(body) {
       _editor = new PbsEditor(ctx, body);
-      return () => { _editor = null; _dialog = null; };
+      return () => { _editor?.dispose(); _editor = null; _dialog = null; };
     },
     onCloseRequest: async () => {
-      if (!(_editor && _editor.dirty.size > 0)) {
-        _dialog.close();
-        return;
-      }
-
-      const result = await ctx.ui.showUnsavedChangesDialog({
-        message: ctx.i18n.t('You have unsaved changes in the PBS Editor.'),
-      });
-
-      if (result === 'save') {
-        try {
-          await _editor.saveAllDirty();
-        } catch {
-          return;
-        }
-        _dialog.close();
-      } else if (result === 'discard') {
-        _dialog.close();
-      }
-      // 'cancel' → no hacer nada
+      const editor = _editor;
+      if (editor?.switching || editor?.saving) return;
+      if (await editor?.confirmPending() && _editor === editor) _dialog?.close();
     },
   });
 }

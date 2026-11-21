@@ -1,4 +1,4 @@
-import { h, _t, createRefInput, goToBtn, makeTypeIndicator, updateTypeIndicator } from './dom.js';
+import { iconSwitch, h, _t, createRefInput, goToBtn, makeTypeIndicator, updateTypeIndicator } from './dom.js';
 
 // ---- Field editors ----
 // `ownership` (LBDS multi-file merge, see PbsEditor.fieldOwnership): null for
@@ -6,10 +6,14 @@ import { h, _t, createRefInput, goToBtn, makeTypeIndicator, updateTypeIndicator 
 // 'inherited' mutes the field (CSS turns off pointer-events on its controls)
 // and offers "Override here" to start owning it in the active file filter;
 // 'overridden' is informational only (All-files view), still fully editable.
+let nextFieldId = 0;
+
 export function createFieldEditor(fieldDef, value, onChange, refData, ctx, onNavigate, ownership) {
   const wrap = h('div', { className: `pbs-field ${fieldDef.fullWidth ? 'full-width' : ''} ${ownership ? 'pbs-field-' + ownership.state : ''}` });
   const labelRow = h('div', { className: 'pbs-field-label-row' });
-  labelRow.appendChild(h('label', { textContent: _t(fieldDef.label) }));
+  const labelId = `pbs-field-${++nextFieldId}`;
+  const label = h('label', { id: labelId, textContent: _t(fieldDef.label) });
+  labelRow.appendChild(label);
   if (ownership) {
     labelRow.appendChild(h('span', { className: 'pbs-field-tag', textContent: ownership.tag, title: ownership.title }));
     if (ownership.onAdopt) {
@@ -17,7 +21,11 @@ export function createFieldEditor(fieldDef, value, onChange, refData, ctx, onNav
     }
   }
   wrap.appendChild(labelRow);
+  wrap.setAttribute('role', 'group');
+  wrap.setAttribute('aria-labelledby', labelId);
   const type = fieldDef.type || 'text';
+  const controlId = labelId + '-control';
+  label.htmlFor = controlId;
 
   // Get suggestions for reference fields
   const getSuggestions = (refKey) => {
@@ -31,7 +39,8 @@ export function createFieldEditor(fieldDef, value, onChange, refData, ctx, onNav
   if (type === 'text' || type === 'number') {
     if (fieldDef.ref && type === 'text') {
       const row = h('div', { style: { display: 'flex', gap: '2px', alignItems: 'center' } });
-      const ref = createRefInput(value, getSuggestions(), onChange);
+      const ref = createRefInput(value, getSuggestions(), onChange, _t(fieldDef.label));
+      ref.el.querySelector('input').id = controlId;
       ref.el.style.flex = '1';
       ref.el.style.minWidth = '0';
       row.appendChild(ref.el);
@@ -40,7 +49,7 @@ export function createFieldEditor(fieldDef, value, onChange, refData, ctx, onNav
       wrap.appendChild(row);
       return wrap;
     }
-    const input = h('input', { type: type === 'number' ? 'number' : 'text', value: String(value || ''), placeholder: fieldDef.placeholder || '' });
+    const input = h('input', { id: controlId, type: type === 'number' ? 'number' : 'text', value: String(value || ''), placeholder: fieldDef.placeholder || '' });
     if (fieldDef.min != null) input.min = fieldDef.min;
     if (fieldDef.max != null) input.max = fieldDef.max;
     if (fieldDef.step != null) input.step = fieldDef.step;
@@ -50,7 +59,7 @@ export function createFieldEditor(fieldDef, value, onChange, refData, ctx, onNav
   }
   if (type === 'select') {
     const row = h('div', { style: { display: 'flex', gap: '2px', alignItems: 'center' } });
-    const sel = h('select', { style: { flex: '1' } });
+    const sel = h('select', { id: controlId, style: { flex: '1' } });
     sel.appendChild(h('option', { value: '', textContent: '—' }));
     for (const opt of (fieldDef.options || [])) sel.appendChild(h('option', { value: opt, textContent: opt, selected: opt === value }));
     if (value && !(fieldDef.options || []).includes(value)) {
@@ -65,18 +74,11 @@ export function createFieldEditor(fieldDef, value, onChange, refData, ctx, onNav
     return wrap;
   }
   if (type === 'checkbox') {
-    const row = h('div', { style: { display: 'flex', alignItems: 'center', gap: '6px', paddingTop: '4px' } });
-    const cb = h('input', { type: 'checkbox', checked: value === 'true' || value === true });
-    cb.addEventListener('change', () => onChange(cb.checked ? 'true' : 'false'));
-    row.appendChild(cb);
-    const lbl = h('span', { textContent: value === 'true' ? _t('Yes') : _t('No'), style: { fontSize: '11px', color: 'var(--text-secondary)' } });
-    cb.addEventListener('change', () => { lbl.textContent = cb.checked ? _t('Yes') : _t('No'); });
-    row.appendChild(lbl);
-    wrap.appendChild(row);
+    wrap.append(iconSwitch(value === 'true' || value === true, _t(fieldDef.label), checked => onChange(String(checked))));
     return wrap;
   }
   if (type === 'textarea') {
-    const ta = h('textarea', { textContent: value || '' });
+    const ta = h('textarea', { id: controlId, textContent: value || '' });
     ta.addEventListener('input', () => onChange(ta.value));
     wrap.appendChild(ta);
     return wrap;
@@ -129,7 +131,7 @@ export function createFieldEditor(fieldDef, value, onChange, refData, ctx, onNav
     wrap.appendChild(editor);
     return wrap;
   }
-  const input = h('input', { type: 'text', value: String(value || '') });
+  const input = h('input', { id: controlId, type: 'text', value: String(value || '') });
   input.addEventListener('input', () => onChange(input.value));
   wrap.appendChild(input);
   return wrap;
@@ -398,7 +400,7 @@ function createStatsEditor(values, names, onChange) {
     const bstRow = h('div', { className: 'pbs-stat-row pbs-stat-bst-row' });
     bstRow.appendChild(h('span', { className: 'pbs-stat-label', textContent: 'BST' }));
     const bstBarBg = h('div', { className: 'pbs-stat-bar-bg' });
-    _bstFill = h('div', { className: 'pbs-stat-bar-fill', style: { width: Math.min(100, bst / 7.2) + '%', background: '#7c8aff' } });
+    _bstFill = h('div', { className: 'pbs-stat-bar-fill', style: { width: Math.min(100, bst / 7.2) + '%', background: 'var(--accent)' } });
     bstBarBg.appendChild(_bstFill);
     bstRow.appendChild(bstBarBg);
     _bstVal = h('span', { className: 'pbs-stat-value', textContent: String(bst) });
@@ -463,7 +465,7 @@ export function createEvsEditor(value, onChange) {
 
 // ---- BGM editor ----
 function createBgmEditor(value, onChange, ctx) {
-  const row = h('div', { className: 'pbs-list-row' });
+  const row = h('div', { className: 'pbs-list-row pbs-bgm-row' });
   const input = h('input', { type: 'text', value: String(value || ''), placeholder: 'Audio/BGM/filename', style: { flex: '1' } });
   input.addEventListener('input', () => onChange(input.value));
   row.appendChild(input);

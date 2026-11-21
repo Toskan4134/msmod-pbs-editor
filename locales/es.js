@@ -1,8 +1,47 @@
 export default {
+  "Resize {column}": "Ajustar ancho de {column}",
+  "Physical": "Físico",
+  "Special": "Especial",
+  "Status": "Estado",
+
+  "Encounter Type": "Tipo de encuentro",
+  "Mark the entry with !exclude without deleting it.": "Marca la entrada con !exclude sin borrarla.",
+
+  "Entries per page": "Entradas por página",
+
+  "{count} selected": "{count} seleccionadas",
+  "Include selected": "Incluir selección",
+  "Exclude selected": "Excluir selección",
+  "Delete entries": "Eliminar entradas",
+  "Delete {count} selected entries?": "¿Eliminar las {count} entradas seleccionadas?",
+
+  "PBS files changed on disk": "Los PBS cambiaron en disco",
+  "Discard your local edits to load the disk version, or overwrite the files with your edits.": "Descarta tus cambios para cargar la versión del disco o sobrescribe los archivos con tus cambios.",
+  "Overwrite": "Sobrescribir",
+  "The PBS files changed again. Try saving again.": "Los PBS han vuelto a cambiar. Intenta guardar de nuevo.",
+
   // index.js
   "PBS Editor": "Editor PBS",
   "Open PBS Editor": "Abrir Editor PBS",
   "You have unsaved changes in the PBS Editor.": "Tienes cambios sin guardar en el Editor PBS.",
+
+  "Back": "Atrás",
+  "Forward": "Adelante",
+  "Essentials version": "Versión de Essentials",
+  "PBS type": "Tipo de PBS",
+  "Actions": "Acciones",
+  "New": "Nuevo",
+  "Back to entries": "Volver a la tabla",
+  "Include entry": "Incluir entrada",
+  "Exclude entry": "Excluir entrada",
+  "Source file": "Archivo de origen",
+  "Could not read {file}: {error}": "No se pudo leer {file}: {error}",
+  "Retry": "Reintentar",
+  "The PBS files are unavailable.": "Los archivos PBS no están disponibles.",
+  "Unsaved changes": "Cambios sin guardar",
+  "Go to reference": "Ir a la referencia",
+  "Reference": "Referencia",
+  "Resize details": "Ajustar el ancho del detalle",
 
   // editor.js — toolbar
   "Search entries...": "Buscar entradas...",
@@ -48,10 +87,10 @@ export default {
   "Search...": "Buscar...",
 
   // components.js — pagination
-  "« First": "« Primero",
-  "← Prev": "← Anterior",
-  "Next →": "Siguiente →",
-  "Last »": "Último »",
+  "First page": "Primera",
+  "Previous page": "Anterior",
+  "Next page": "Siguiente",
+  "Last page": "Última",
   "Page {current} of {total}": "Página {current} de {total}",
 
   // components.js — preview

@@ -1,4 +1,4 @@
-import { h, _t, createRefInput, goToBtn } from './dom.js';
+import { iconSwitch, h, _t, createRefInput, goToBtn } from './dom.js';
 import { createListEditor, createEvsEditor } from './field-editor.js';
 
 // ---- Encounter sub-section editor ----
@@ -13,7 +13,7 @@ export function createEncounterEditor(entry, onChange, onRebuild, refData, onNav
 
     // Header with type dropdown, density, and delete
     const header = h('div', { className: 'pbs-subsection-header' });
-    const typeSelect = h('select', { style: { fontSize: '11px', background: 'var(--input-bg)', color: 'var(--text-primary)', border: '1px solid var(--border)', borderRadius: '3px', padding: '1px 4px' } });
+    const typeSelect = h('select', { className: 'pbs-encounter-type', 'aria-label': _t('Encounter Type') });
     for (const t of ENCOUNTER_TYPES) {
       typeSelect.appendChild(h('option', { value: t, textContent: t, selected: t === enc.type }));
     }
@@ -221,13 +221,10 @@ export function createTrainerPokemonEditor(entry, onChange, onRebuild, refData, 
       // Shiny
       const shinyField = h('div', { className: 'pbs-field' });
       shinyField.appendChild(h('label', { textContent: _t('Shiny') }));
-      const shinyRow = h('div', { style: { display: 'flex', alignItems: 'center', gap: '4px' } });
-      const shinyCb = h('input', { type: 'checkbox', checked: p.Shiny === 'true' || p.Shiny === true });
-      const shinyLbl = h('span', { textContent: p.Shiny === 'true' ? _t('Yes') : _t('No'), style: { fontSize: '11px', color: 'var(--text-secondary)' } });
-      shinyCb.addEventListener('change', () => { p.Shiny = shinyCb.checked ? 'true' : 'false'; shinyLbl.textContent = shinyCb.checked ? _t('Yes') : _t('No'); onChange(); });
-      shinyRow.appendChild(shinyCb);
-      shinyRow.appendChild(shinyLbl);
-      shinyField.appendChild(shinyRow);
+      shinyField.append(iconSwitch(p.Shiny === 'true' || p.Shiny === true, _t('Shiny'), checked => {
+        p.Shiny = String(checked);
+        onChange();
+      }));
       body.appendChild(shinyField);
 
       // IV (full width, structured like EVs)

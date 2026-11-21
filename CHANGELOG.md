@@ -1,5 +1,25 @@
 # Changelog
 
+## [Unreleased]
+
+- Refresh the open PBS category when files change on disk and offer Cancel, Discard, or Overwrite when saving over external changes.
+- Update type badges immediately when a type field changes.
+
+- Animated Pokémon table icons and trainer sprites. Linked the Forms species field to Pokémon entries.
+
+- Added multi-row selection across pages and batch duplicate, delete, and exclude/include.
+- Added adjustable page sizes, trainer portraits, and columns that fit the available width.
+
+- Fit columns to all records and distribute extra table width evenly before manual resizing.
+- Added direct entry actions and keyboard shortcuts, game-provided move category graphics, and individual flag editors for v21 and LBDS.
+
+- Added resizable table columns, scrolling labels, move category icons and compact switches.
+- Fixed sprite preview alignment, numbering across additional PBS files and first-step history navigation.
+
+- Updated the PBS Editor to match Maker Studio controls and themes, with a compact view for narrow dialogs.
+- Improved keyboard navigation, entry actions, and reference autocomplete.
+- Added a save, discard, or cancel prompt when switching PBS types or Essentials versions. Read errors block saving the affected file type.
+
 ## [1.6.1]
 
 PBS Editor now uses the Maker Studio Mod Free Distribution License. The mod

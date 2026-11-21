@@ -8,7 +8,8 @@ directly inside the map editor. Supports v16, v17, and v21 data formats.
 1. Registers a **Mods → PBS Editor...** menu item (shortcut **Ctrl+Shift+P**) that opens
    a large dialog.
 2. The dialog has a 3-column layout: **file-type sidebar** | **sortable table with
-   pagination** | **sprite preview + field editor**.
+   pagination** | **sprite preview + field editor**. In narrower dialogs, the file
+   types move to a selector and the table and detail use separate views.
 3. Reads and writes PBS files from the project's `PBS/` directory via the mod API
    (`ctx.fs.readProjectFile` / `ctx.fs.writeProjectFile`).
 4. Detects the Essentials version from `pokemon.txt` format and lets you switch between
@@ -49,9 +50,14 @@ directly inside the map editor. Supports v16, v17, and v21 data formats.
    referenced entry in another PBS file, with back/forward history.
 9. **Sprite preview** shows front/back/shiny graphics for Pokemon and Trainer sprites,
    including animated spritesheet playback using `pokemon_metrics.txt` speed data.
-10. Full CRUD: add, duplicate, delete, toggle exclude (`!exclude`) via context menu.
-11. Unsaved-change tracking with dirty indicator, confirmation on close/switch, and
+10. Full CRUD with toolbar buttons and a row context menu. **Ctrl+T** creates, **Ctrl+J** duplicates, and **Delete** removes the selection. Exclude / Include adds or removes the existing `!exclude` marker in supported text formats. The compiler determines whether that marker affects the game, and JSON PBS cannot store it.
+11. Unsaved-change tracking with dirty indicator, Save / Discard / Cancel on close, file-type changes, or version changes, and
     **Ctrl+S** save.
+
+While the dialog is open, the active category checks for external changes
+every two seconds and when Maker Studio regains focus. Opening a category
+checks its files before reusing previously loaded entries. If the files change while you have local edits, Save asks whether to cancel,
+discard your edits and load the disk version, or overwrite the disk version.
 
 ### Supported PBS files
 
@@ -83,7 +89,7 @@ directly inside the map editor. Supports v16, v17, and v21 data formats.
 | Game root path | `ctx.editor.gameRoot()` |
 | Tauri IPC | `window.__TAURI__.core.invoke('read_binary_file', ...)` |
 | Vanilla DOM rendering | `render(host: HTMLElement)` — no framework |
-| Dialog close interception | Override `dialog.close` for unsaved-changes guard |
+| Dialog close interception | `onCloseRequest` and `ctx.ui.showUnsavedChangesDialog(...)` |
 
 ### File structure
 
@@ -109,6 +115,11 @@ directly inside the map editor. Supports v16, v17, and v21 data formats.
 2. Open the project in the editor.
 3. Go to **Mods → PBS Editor...** (or press **Ctrl+Shift+P**).
 4. Select a file type from the sidebar — the table populates from the project's PBS files.
-5. Click a row to edit in the detail panel. Click a "Go to" arrow to navigate to a
+5. Activate a row to edit in the detail panel. Use the arrow keys to move through
+   sorted results and Shift+F10 to open the entry menu. Drag a column border to
+   change its width, or set 10–200 entries per page beside the search field.
+   Use Ctrl/Cmd-click to select multiple records, and Shift-click
+   to add a range. Selection persists across pages. Duplicate, Delete and
+   Exclude/Include apply to all selected records. Click a "Go to" arrow to navigate to a
    referenced entry.
 6. Press **Ctrl+S** or the Save button to write changes back.
