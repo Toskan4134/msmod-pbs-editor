@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.6.1]
+
+PBS Editor now uses the Maker Studio Mod Free Distribution License. The mod
+and corresponding source are available free of charge. Earlier releases retain
+their published license terms.
+
 ## [1.6.0] - 2026-08-13
 
 ### Added
